@@ -11,3 +11,7 @@ https://www.sports-reference.com/
 https://www.fanduel.com/
 
 https://www.pff.com/
+
+https://scikit-learn.org/
+
+https://www.warrennolan.com/fbs/2024/elo-conference
