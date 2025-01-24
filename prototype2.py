@@ -1,18 +1,39 @@
+"""Prototype for manual categorization with Monte Carlo cross validation technique."""
+
 import pandas as pd
+import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
+from collections import Counter
+from collections import defaultdict
+
+
+
+# File paths for the datasets
+file_paths_nfl = [
+    "data/historical-nfl/2020wr.csv",
+    "data/historical-nfl/2021wr.csv",
+    "data/historical-nfl/2022wr.csv"
+]
+
+# Load and combine the datasets
+combined_data_nfl = pd.concat([pd.read_csv(path) for path in file_paths_nfl], ignore_index=True)
+
+# Save the combined data to a new CSV file
+output_path_nfl = "data/historical-nfl/combined_wr_data.csv"
+combined_data_nfl.to_csv(output_path_nfl, index=False)
 
 # Load and preprocess nfl stats
-nfl_stats1 = pd.read_csv("data/historical-nfl/2020wr.csv")
-nfl_stats1['nflYears'] = nfl_stats1['nflYears'].astype(float)
+nfl_stats = pd.read_csv("data/historical-nfl/combined_wr_data.csv")
+nfl_stats['nflYears'] = nfl_stats['nflYears'].astype(float)
 
 # List of columns to normalize and average
-nfl_metrics_to_normalize = ['nflRec', 'nflYds', 'nflTD', 'AP1', 'St', 'PB', 'wAV']
+nfl_metrics_to_normalize = ['nflRec', 'nflYds', 'nflTD', 'AP1', 'St', 'PB']
 
 # Average the metrics by dividing by nflYears
 for metric in nfl_metrics_to_normalize:
-    nfl_stats1[metric + '_avg'] = nfl_stats1[metric] / nfl_stats1['nflYears']
+    nfl_stats[metric + '_avg'] = nfl_stats[metric] / nfl_stats['nflYears']
 
 # Standardize the averaged metrics
 scaler = StandardScaler()
@@ -21,38 +42,57 @@ scaler = StandardScaler()
 normalized = [metric + '_avg_normalized' for metric in nfl_metrics_to_normalize]
 
 # Standardize the averaged metrics (normalize by standard deviation)
-nfl_stats1[normalized] = scaler.fit_transform(nfl_stats1[[metric + '_avg' for metric in nfl_metrics_to_normalize]])
+nfl_stats[normalized] = scaler.fit_transform(nfl_stats[[metric + '_avg' for metric in nfl_metrics_to_normalize]])
+
+# Standardize the un-averaged metrics
+nfl_stats['wAV_normalized'] = scaler.fit_transform(nfl_stats[['wAV']])
 
 # Define success metric using the normalized averaged metrics
-nfl_stats1['SuccessMetric'] = (nfl_stats1['nflYds_avg_normalized'] + nfl_stats1['nflTD_avg_normalized'] +
-                               nfl_stats1['nflRec_avg_normalized'] + nfl_stats1['AP1_avg_normalized'] +
-                               nfl_stats1['St_avg_normalized'] + nfl_stats1['PB_avg_normalized'] +
-                               nfl_stats1['wAV_avg_normalized'])
+nfl_stats['SuccessMetric'] = (nfl_stats['nflYds_avg_normalized'] + nfl_stats['nflTD_avg_normalized'] +
+                               nfl_stats['nflRec_avg_normalized'] + nfl_stats['AP1_avg_normalized'] +
+                               nfl_stats['St_avg_normalized'] + nfl_stats['PB_avg_normalized'] +
+                               nfl_stats['wAV_normalized'])
 
-# Calculate basic statistics for SuccessMetric
-nfl_stats1['SuccessMetric'].describe(percentiles=[.25, .5, .75, .9])
 
-def categorize_player(success_metric):
-    if success_metric >= 15:  # Top ~10%
-        return "All-Pro"
-    elif success_metric >= 5:  # Top ~25%
-        return "Pro Bowler"
-    elif success_metric >= 1:  # Above average players
-        return "Starter"
-    elif success_metric >= -2:  # Backup-level players
-        return "Backup"
-    else:
-        return "Practice Squad"  # Players with lower scores
+# File paths for the datasets
+file_paths_measurements = [
+    "data/historical-measurements/2020wr.csv",
+    "data/historical-measurements/2021wr.csv",
+    "data/historical-measurements/2022wr.csv"
+]
 
-nfl_stats1['Category'] = nfl_stats1['SuccessMetric'].apply(categorize_player)
+file_paths_combine = [
+    "data/historical-combine/2020wr.csv",
+    "data/historical-combine/2021wr.csv",
+    "data/historical-combine/2022wr.csv"
+]
 
-# Check thresholds distribution
-print(nfl_stats1['Category'].value_counts())
+file_paths_college = [
+    "data/historical-college/2020wr.csv",
+    "data/historical-college/2021wr.csv",
+    "data/historical-college/2022wr.csv"
+]
+
+# Load and combine the datasets
+combined_data_measurements = pd.concat([pd.read_csv(path) for path in file_paths_measurements], ignore_index=True)
+combined_data_combine = pd.concat([pd.read_csv(path) for path in file_paths_combine], ignore_index=True)
+combined_data_college = pd.concat([pd.read_csv(path) for path in file_paths_college], ignore_index=True)
+
+# Save the combined data to a new CSV file
+output_path_measurements = "data/historical-measurements/combined_wr_data.csv"
+combined_data_measurements.to_csv(output_path_measurements, index=False)
+
+output_path_combine = "data/historical-combine/combined_wr_data.csv"
+combined_data_combine.fillna(np.nan, inplace=True)
+combined_data_combine.to_csv(output_path_combine, index=False)
+
+output_path_college = "data/historical-college/combined_wr_data.csv"
+combined_data_college.to_csv(output_path_college, index=False)
 
 # Select features and target variable
-measurements1 = pd.read_csv("data/historical-measurements/2020wr.csv")
-combine_stats1 = pd.read_csv("data/historical-combine/2020wr.csv")
-college_stats1 = pd.read_csv("data/historical-college/2020wr.csv")
+measurements = pd.read_csv("data/historical-measurements/combined_wr_data.csv")
+combine_stats = pd.read_csv("data/historical-combine/combined_wr_data.csv")
+college_stats = pd.read_csv("data/historical-college/combined_wr_data.csv")
 
 conference_rankings = {
     'SEC': 10,
@@ -68,18 +108,18 @@ conference_rankings = {
 }
 
 # Map conference names to their rankings, default to 1 for any conference not listed
-college_stats1['ConfRank'] = college_stats1['Conf'].map(conference_rankings).fillna(1)
+college_stats['ConfRank'] = college_stats['Conf'].map(conference_rankings).fillna(1)
 
 # Merge datasets on Player column
-data = college_stats1.merge(measurements1, on="Player").merge(combine_stats1, on="Player")
+data = college_stats.merge(measurements, on="Player").merge(combine_stats, on="Player")
 
 # Ensure that the players in the target and features match
-merged_data = data.merge(nfl_stats1[['Player', 'SuccessMetric']], on='Player', how='inner')
+merged_data = data.merge(nfl_stats[['Player', 'SuccessMetric']], on='Player', how='inner')
 
 # Features
-features = merged_data[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank',]] 
+features = merged_data[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank', '40yd', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)']]
                         
-                        #'40yd', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)']]
+                        #, 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)']]
 
 # Normalize the feature metrics (standard deviation normalization)
 features_normalized = scaler.fit_transform(features)
@@ -90,21 +130,62 @@ features_normalized_df = pd.DataFrame(features_normalized, columns=features.colu
 # Target
 target = merged_data['SuccessMetric']
 
-# Train-test split
-X_train, X_test, y_train, y_test = train_test_split(features, target, test_size=0.5,)
+# Define categorize_player function
+def categorize_player(success_metric):
+    if success_metric >= 15:  
+        return "All-Pro"
+    elif success_metric >= 5:  
+        return "Pro Bowler"
+    elif success_metric >= 1:  
+        return "Starter"
+    elif success_metric >= -2:  
+        return "Backup"
+    else:
+        return "Practice Squad"  
 
-# Train the linear regression model
-model = LinearRegression()
-model.fit(X_train, y_train)
+# Monte Carlo Cross Validation
+num_iterations = 100
+mccv_results = defaultdict(list)
 
-# Predict and categorize players in the test set
-predictions = model.predict(X_test)
-predicted_categories = [categorize_player(pred) for pred in predictions]
+for i in range(num_iterations):
+    # Train-test split
+    X_train, X_test, y_train, y_test = train_test_split(features, target, test_size=0.7, random_state=i)
+    
+    # Train the linear regression model
+    model = LinearRegression()
+    model.fit(X_train, y_train)
+    
+    # Predict and categorize players in the test set
+    predictions = model.predict(X_test)
+    predicted_categories = [categorize_player(pred) for pred in predictions]
+    
+    # Apply the categorize_player function to the actual success metric values
+    actual_categories = [categorize_player(actual) for actual in y_test]
+    
+    # Calculate the distribution of predicted and actual categories
+    predicted_category_counts = Counter(predicted_categories)
+    actual_category_counts = Counter(actual_categories)
+    
+    # Store the accuracy and category counts
+    mccv_results['accuracy'].append(
+        sum(p == a for p, a in zip(predicted_categories, actual_categories)) / len(y_test)
+    )
+    mccv_results['predicted_categories'].append(predicted_category_counts)
+    mccv_results['actual_categories'].append(actual_category_counts)
 
+# Aggregate results
+mean_accuracy = np.mean(mccv_results['accuracy'])
+std_accuracy = np.std(mccv_results['accuracy'])
 
-# Apply the categorize_player function to the actual success metric values
-actual_categories = [categorize_player(actual) for actual in y_test]
+print("\nMonte Carlo Cross-Validation Results:")
+print(f"Mean Accuracy: {mean_accuracy:.4f}")
+print(f"Standard Deviation of Accuracy: {std_accuracy:.4f}")
 
-# Output results with aligned columns
-for player, pred, actual, pred_category, actual_category in zip(merged_data['Player'][X_test.index], predictions, y_test, predicted_categories, actual_categories):
-    print(f"Player: {player:<20} Predicted Success: {pred:>10.2f}  Actual Success: {actual:>10.2f}  Predicted Category: {pred_category:<15} Actual Category: {actual_category:<15}")
+# Calculate and display average category distributions across all iterations
+for key in ['predicted_categories', 'actual_categories']:
+    combined_counts = sum((Counter(cats) for cats in mccv_results[key]), Counter())
+    average_distribution = {category: count / num_iterations for category, count in combined_counts.items()}
+    
+    print(f"\nAverage Category Distributions ({key}):")
+    for category, avg_count in average_distribution.items():
+        print(f"{category}: {avg_count:.2f}")
