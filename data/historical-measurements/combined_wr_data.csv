@@ -1,0 +1,99 @@
+Player,Height(in),Weight,Hand(in),Arm(in),Wingspan(in)
+Henry Ruggs III,71.0,188,10.125,30.5,74.5
+Jerry Jeudy,73.0,193,9.5,32.125,78.0
+CeeDee Lamb,73.625,198,9.25,32.25,76.375
+Jalen Reagor,70.625,206,9.5,31.375,74.25
+Justin Jefferson,73.25,202,9.125,33.0,78.0
+Brandon Aiyuk,71.625,205,10.0,33.5,80.0
+Tee Higgins,75.625,216,9.25,34.125,81.0
+Michael Pittman Jr.,76.0,223,9.25,32.5,79.25
+Laviska Shenault Jr.,72.625,227,9.0,31.875,76.375
+KJ Hamler,69.25,178,9.375,30.75,74.0
+Chase Claypool,76.0,238,10.0,32.5,80.375
+Van Jefferson,73.375,200,9.125,33.0,78.0
+Denzel Mims,74.875,207,9.375,33.875,81.0
+Lynn Bowden Jr.,71.125,204,9.125,31.125,75.0
+Bryan Edwards,74.0,212,9.125,32.375,79.0
+Devin Duvernay,70.625,200,9.625,30.75,73.625
+Gabriel Davis,74.0,216,9.0,32.0,78.375
+Antonio Gandy-Golden,76.375,223,9.875,31.25,78.0
+Joe Reed,72.5,224,9.75,31.125,75.5
+Tyler Johnson,73.375,206,9.0,30.875,75.0
+Collin Johnson,77.625,222,9.0,31.75,80.0
+Quintez Cephus,72.375,202,9.625,32.0,75.125
+John Hightower,73.125,189,9.125,32.5,76.0
+Isaiah Coulter,74.0,198,9.0,31.375,77.0
+Darnell Mooney,70.0,176,9.25,30.875,73.5
+Donovan Peoples-Jones,73.625,212,10.125,33.5,81.125
+Freddie Swain,72.25,197,9.0,30.625,74.0
+KJ Osborn,71.5,203,9.125,31.25,75.5
+Dezmon Patmon,75.75,225,10.25,32.75,79.375
+Jauan Jennings,75.125,215,9.0,31.625,78.0
+Quez Watkins,72.125,185,9.0,32.875,78.625
+James Proche,71.0,201,9.625,31.375,74.625
+Tyrie Cleveland,74.0,209,9.375,32.375,79.625
+KJ Hill,72.125,196,9.125,31.0,75.0
+Isaiah Hodgins,75.0,210,9.875,33.125,79.0
+Ja'Marr Chase,72.375,201,9.625,30.75,74.875
+Jaylen Waddle,69.75,180,9.125,30.125,73.125
+DeVonta Smith,72.0,170,9.375,31.25,78.5
+Kadarius Toney,71.625,193,9.25,31.25,75.25
+Rashod Bateman,73.0,190,9.5,33.0,78.0
+Elijah Moore,69.5,178,9.375,30.125,73.375
+Rondale Moore,67.0,180,9.25,28.25,69.125
+D'Wayne Eskridge,69.125,190,9.125,30.625,72.875
+Tutu Atwell,68.0,155,9.0,28.5,70.0
+Terrace Marshall Jr.,74.625,205,9.5,32.75,78.125
+Josh Palmer,73.5,210,9.25,33.125,78.5
+Dyami Brown,72.25,189,9.75,32.875,76.25
+Amari Rodgers,69.75,212,9.5,31.125,75.875
+Nico Collins,76.5,215,9.375,34.25,79.25
+Anthony Schwartz,72.25,186,8.875,31.625,75.5
+Dez Fitzpatrick,74.0,206,9.5,32.25,77.5
+Amon-Ra St. Brown,71.5,197,9.25,30.75,75.0
+Jaelon Darden,68.0,174,8.75,30.125,71.5
+Tylan Wallace,72.0,190,9.625,31.5,75.0
+Jacob Harris,77.0,219,9.25,33.5,79.75
+Ihmir Smith-Marsette,73.0,186,9.25,32.25,76.5
+Simi Fehoko,76.25,227,10.0,33.5,79.25
+Cornell Powell,72.25,210,9.0,32.5,76.0
+Frank Darby,72.0,201,9.125,32.25,76.5
+Marquez Stevenson,71.75,182,8.625,30.625,73.0
+Shi Smith,69.5,186,9.375,30.125,73.25
+Racey McMath,75.5,224,9.75,32.625,79.5
+Jalen Camp,74.0,226,9.75,33.0,79.25
+Seth Williams,75.0,211,9.25,32.625,78.75
+Dazz Newsome,70.0,190,9.0,31.625,74.25
+Mike Strachan,77.5,228,10.25,34.25,81.0
+Tre Nixon,72.0,187,9.0,31.75,76.0
+Ben Skowronek,74.0,224,9.5,31.625,76.75
+Kawaan Baker,72.0,210,9.125,32.0,75.5
+Dax Milne,72.5,193,8.875,30.875,75.0
+Drake London,76.875,219,9.375,33.0,77.75
+Garrett Wilson,74.25,183,9.625,31.75,75.875
+Chris Olave,73.0,189,9.375,31.25,73.875
+Jameson Williams,74.25,189,9.625,32.125,75.875
+Jahan Dotson,70.125,178,9.375,31.0,73.5
+Treylon Burks,75.625,225,9.5,32.25,78.5
+Christian Watson,76.25,208,9.25,32.5,76.25
+Wan'Dale Robinson,70.75,185,9.25,29.625,74.0
+John Metchie,70.75,195,9.5,31.25,73.75
+Tyquan Thornton,74.125,181,9.375,32.0,74.125
+George Pickens,74.875,195,9.125,31.5,75.0
+Alec Pierce,75.875,211,9.375,32.5,80.125
+Skyy Moore,70.75,195,9.125,30.625,74.125
+Velus Jones Jr.,71.5,204,9.25,31.25,73.5
+Jalen Tolbert,74.5,194,9.5,31.75,75.5
+David Bell,73.125,212,9.625,32.25,77.5
+Danny Gray,71.5,189,9.375,30.5,72.75
+Erik Ezukanma,74.125,205,9.125,31.125,73.5
+Romeo Doubs,74.25,204,9.125,32.25,74.25
+Calvin Austin,70.75,162,9.25,30.5,73.5
+Khalil Shakir,73.25,196,9.25,31.5,75.25
+Montrell Washington,70.625,180,9.5,30.125,72.75
+Kyle Philips,71.5,189,9.375,31.0,73.25
+Jalen Nailor,72.5,204,9.5,31.5,74.0
+Michael Woods II,73.5,205,9.125,30.75,73.0
+Bo Melton,71.25,195,9.125,31.5,73.0
+Dareke Young,73.5,220,9.5,32.25,74.5
+Samori Toure,72.0,190,9.5,31.5,72.5
