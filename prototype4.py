@@ -13,6 +13,7 @@ from collections import Counter
 
 # File paths for the datasets
 file_paths_nfl = [
+    "data/historical-nfl/2019wr.csv",
     "data/historical-nfl/2020wr.csv",
     "data/historical-nfl/2021wr.csv",
     "data/historical-nfl/2022wr.csv"
@@ -57,18 +58,21 @@ nfl_stats['SuccessMetric'] = (nfl_stats['nflYds_avg_normalized'] + nfl_stats['nf
 
 # File paths for the datasets
 file_paths_measurements = [
+    "data/historical-measurements/2019wr.csv",
     "data/historical-measurements/2020wr.csv",
     "data/historical-measurements/2021wr.csv",
     "data/historical-measurements/2022wr.csv"
 ]
 
 file_paths_combine = [
+    "data/historical-combine/2019wr.csv",
     "data/historical-combine/2020wr.csv",
     "data/historical-combine/2021wr.csv",
     "data/historical-combine/2022wr.csv"
 ]
 
 file_paths_college = [
+    "data/historical-college/2019wr.csv",
     "data/historical-college/2020wr.csv",
     "data/historical-college/2021wr.csv",
     "data/historical-college/2022wr.csv"
