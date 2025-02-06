@@ -1,13 +1,14 @@
-"""Prototype for manual categorization with Monte Carlo cross validation technique."""
+"""Prototype for KMeans Clustering with Monte Carlo cross validation technique."""
 
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
-from collections import Counter
+from sklearn.cluster import KMeans
+from sklearn.metrics import accuracy_score
 from collections import defaultdict
-
+from collections import Counter
 
 
 # File paths for the datasets
@@ -123,7 +124,7 @@ merged_data = data.merge(nfl_stats[['Player', 'SuccessMetric']], on='Player', ho
 # Features
 features = merged_data[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank', '40yd', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)']]
                         
-                        #, 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)']]
+                        #, 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)']]                 
 
 # Normalize the feature metrics (standard deviation normalization)
 features_normalized = scaler.fit_transform(features)
@@ -134,25 +135,16 @@ features_normalized_df = pd.DataFrame(features_normalized, columns=features.colu
 # Target
 target = merged_data['SuccessMetric']
 
-# Define categorize_player function
-def categorize_player(success_metric):
-    if success_metric >= 15:  
-        return "All-Pro"
-    elif success_metric >= 5:  
-        return "Pro Bowler"
-    elif success_metric >= 1:  
-        return "Starter"
-    elif success_metric >= -2:  
-        return "Backup"
-    else:
-        return "Practice Squad"  
-
-# Monte Carlo Cross Validation
+# Number of Monte Carlo iterations
 num_iterations = 100
+
+# Store results
 mccv_results = defaultdict(list)
 
+player_success_scores = defaultdict(list)
+
 for i in range(num_iterations):
-    # Train-test split
+    # Random train-test split
     X_train, X_test, y_train, y_test = train_test_split(features, target, test_size=0.7, random_state=i)
     
     # Train the linear regression model
@@ -161,35 +153,81 @@ for i in range(num_iterations):
     
     # Predict and categorize players in the test set
     predictions = model.predict(X_test)
-    predicted_categories = [categorize_player(pred) for pred in predictions]
-    
-    # Apply the categorize_player function to the actual success metric values
-    actual_categories = [categorize_player(actual) for actual in y_test]
-    
-    # Calculate the distribution of predicted and actual categories
-    predicted_category_counts = Counter(predicted_categories)
-    actual_category_counts = Counter(actual_categories)
-    
-    # Store the accuracy and category counts
-    mccv_results['accuracy'].append(
-        sum(p == a for p, a in zip(predicted_categories, actual_categories)) / len(y_test)
-    )
-    mccv_results['predicted_categories'].append(predicted_category_counts)
-    mccv_results['actual_categories'].append(actual_category_counts)
+    predictions_reshaped = predictions.reshape(-1, 1)
 
-# Aggregate results
+    # Store success scores for each player in this iteration
+    for player, score in zip(merged_data.loc[X_test.index, 'Player'], predictions):
+        player_success_scores[player].append(score)
+    
+    # Use kmeans to fit and predict categories for all players
+    kmeans = KMeans(n_clusters=5, random_state=42, n_init=10)
+    cluster_labels = kmeans.fit_predict(
+        np.concatenate((y_test.to_numpy().reshape(-1, 1), predictions_reshaped), axis=0)
+    )
+    
+    # Separate cluster labels for predicted and actual categories
+    num_predictions = len(predictions_reshaped)
+    predicted_clusters = cluster_labels[num_predictions:]
+    actual_clusters = cluster_labels[:len(y_test)]
+
+    # Add success metrics to associate cluster with category
+    y_combined = pd.concat([y_test.reset_index(drop=True), pd.Series(predictions)], axis=0)
+    cluster_avg_scores = pd.DataFrame({
+        "Cluster": cluster_labels,
+        "Score": y_combined
+    }).groupby("Cluster")["Score"].mean()
+
+    # Sort clusters by average score
+    sorted_clusters = cluster_avg_scores.sort_values(ascending=False)
+
+    # Map sorted clusters to categories
+    cluster_to_category = {
+        sorted_clusters.index[0]: "All-Pro",
+        sorted_clusters.index[1]: "Pro Bowler",
+        sorted_clusters.index[2]: "Starter",
+        sorted_clusters.index[3]: "Backup",
+        sorted_clusters.index[4]: "Practice Squad"
+    }
+
+    # Function to categorize player based on cluster
+    def categorize_player_automated(cluster_label: int):
+        return cluster_to_category.get(cluster_label, "Unknown")
+    
+    # Apply category mapping
+    predicted_categories = [categorize_player_automated(cluster) for cluster in predicted_clusters]
+    actual_categories = [categorize_player_automated(cluster) for cluster in actual_clusters]
+    
+    # Calculate accuracy and store results
+    accuracy = accuracy_score(actual_categories, predicted_categories)
+    mccv_results['iteration'].append(i)
+    mccv_results['accuracy'].append(accuracy)
+    mccv_results['predicted_categories'].append(Counter(predicted_categories))
+    mccv_results['actual_categories'].append(Counter(actual_categories))
+
+# Calculate and report mean accuracy and standard deviation across MCCV iterations
 mean_accuracy = np.mean(mccv_results['accuracy'])
 std_accuracy = np.std(mccv_results['accuracy'])
 
-print("\nMonte Carlo Cross-Validation Results:")
+print(f"\nMonte Carlo Cross-Validation Results:")
 print(f"Mean Accuracy: {mean_accuracy:.4f}")
 print(f"Standard Deviation of Accuracy: {std_accuracy:.4f}")
 
-# Calculate and display average category distributions across all iterations
+# Calculate total counts of categories across all iterations
 for key in ['predicted_categories', 'actual_categories']:
+    print(f"\nAverage Category Distributions ({key}):")
     combined_counts = sum((Counter(cats) for cats in mccv_results[key]), Counter())
+    
+    # Calculate average distribution by dividing total counts by the number of iterations
     average_distribution = {category: count / num_iterations for category, count in combined_counts.items()}
     
-    print(f"\nAverage Category Distributions ({key}):")
+    # Print average distribution
     for category, avg_count in average_distribution.items():
         print(f"{category}: {avg_count:.2f}")
+
+# Compute average success score per player
+average_success_scores = {player: np.mean(scores) for player, scores in player_success_scores.items()}
+
+# results
+print("\nAverage Predicted Success Score Per Player:")
+for player, avg_score in sorted(average_success_scores.items(), key=lambda x: x[1], reverse=True):
+    print(f"{player}: {avg_score:.4f}")
