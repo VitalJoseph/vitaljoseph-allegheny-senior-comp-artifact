@@ -9,15 +9,18 @@ attrs==25.1.0
 babel==2.16.0
 beautifulsoup4==4.12.3
 bleach==6.2.0
+blinker==1.9.0
 certifi==2024.12.14
 cffi==1.17.1
 charset-normalizer==3.4.1
+click==8.1.8
 comm==0.2.2
 debugpy==1.8.12
 decorator==5.1.1
 defusedxml==0.7.1
 executing==2.2.0
 fastjsonschema==2.21.1
+Flask==3.1.0
 fqdn==1.5.1
 h11==0.14.0
 httpcore==1.0.7
@@ -26,6 +29,7 @@ idna==3.10
 ipykernel==6.29.5
 ipython==8.31.0
 isoduration==20.11.0
+itsdangerous==2.2.0
 jedi==0.19.2
 Jinja2==3.1.5
 joblib==1.4.2
@@ -96,3 +100,4 @@ wcwidth==0.2.13
 webcolors==24.11.1
 webencodings==0.5.1
 websocket-client==1.8.0
+Werkzeug==3.1.3
