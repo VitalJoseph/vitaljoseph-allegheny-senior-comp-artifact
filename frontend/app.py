@@ -16,7 +16,7 @@ sys.stdout = NullWriter()
 
 # Add the parent directory to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from models import prototype1, prototype2, prototype3, prototype4
+from models import manual_mccv, cluster_mccv, cl
 
 # Restore stdout so Flask work properly
 sys.stdout = sys.__stdout__
@@ -24,16 +24,16 @@ sys.stdout = sys.__stdout__
 app = Flask(__name__)
 
 # Extract player names
-players = list(prototype2.average_predicted_success_scores.keys())
+players = list(manual_mccv.average_predicted_success_scores.keys())
 
 # Convert data into a structured format for the webpage
 player_data = [
     {
         "name": player,
-        "actual_category": prototype2.final_actual_categories.get(player, "Unknown"),
-        "predicted_category": prototype2.final_predicted_categories.get(player, "Unknown"),
-        "actual_score": prototype2.target[prototype2.merged_data['Player'] == player].values[0] if player in prototype2.merged_data['Player'].values else None,
-        "predicted_score": prototype2.average_predicted_success_scores.get(player, None),
+        "actual_category": manual_mccv.final_actual_categories.get(player, "Unknown"),
+        "predicted_category": manual_mccv.final_predicted_categories.get(player, "Unknown"),
+        "actual_score": manual_mccv.target[manual_mccv.merged_data['Player'] == player].values[0] if player in manual_mccv.merged_data['Player'].values else None,
+        "predicted_score": manual_mccv.average_predicted_success_scores.get(player, None),
     }
     for player in players
 ]
