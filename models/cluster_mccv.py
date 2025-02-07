@@ -138,10 +138,12 @@ target = merged_data['SuccessMetric']
 # Number of Monte Carlo iterations
 num_iterations = 100
 
-# Store results
 mccv_results = defaultdict(list)
-
 player_success_scores = defaultdict(list)
+
+# Store the most common predicted and actual category per player
+player_actual_categories = defaultdict(list)
+player_predicted_categories = defaultdict(list)
 
 for i in range(num_iterations):
     # Random train-test split
@@ -155,7 +157,7 @@ for i in range(num_iterations):
     predictions = model.predict(X_test)
     predictions_reshaped = predictions.reshape(-1, 1)
 
-    # Store success scores for each player in this iteration
+    # Store success scores for each player
     for player, score in zip(merged_data.loc[X_test.index, 'Player'], predictions):
         player_success_scores[player].append(score)
     
@@ -196,38 +198,78 @@ for i in range(num_iterations):
     # Apply category mapping
     predicted_categories = [categorize_player_automated(cluster) for cluster in predicted_clusters]
     actual_categories = [categorize_player_automated(cluster) for cluster in actual_clusters]
-    
-    # Calculate accuracy and store results
-    accuracy = accuracy_score(actual_categories, predicted_categories)
-    mccv_results['iteration'].append(i)
-    mccv_results['accuracy'].append(accuracy)
-    mccv_results['predicted_categories'].append(Counter(predicted_categories))
-    mccv_results['actual_categories'].append(Counter(actual_categories))
 
-# Calculate and report mean accuracy and standard deviation across MCCV iterations
+    # Store the category predictions for each player
+    for player, actual, predicted in zip(merged_data.loc[X_test.index, 'Player'], actual_categories, predicted_categories):
+        player_actual_categories[player].append(actual)
+        player_predicted_categories[player].append(predicted)
+    
+    # Store the accuracy and category counts
+    mccv_results['accuracy'].append(
+        sum(p == a for p, a in zip(predicted_categories, actual_categories)) / len(y_test)
+    )
+    mccv_results['predicted_categories'].append(player_predicted_categories)
+    mccv_results['actual_categories'].append(player_actual_categories)
+
+# Aggregate results
 mean_accuracy = np.mean(mccv_results['accuracy'])
 std_accuracy = np.std(mccv_results['accuracy'])
 
-print(f"\nMonte Carlo Cross-Validation Results:")
-print(f"Mean Accuracy: {mean_accuracy:.4f}")
+
+print("\n=== Monte Carlo Cross-Validation Report ===")
+print(f"\nMean Accuracy: {mean_accuracy:.4f}")
 print(f"Standard Deviation of Accuracy: {std_accuracy:.4f}")
 
-# Calculate total counts of categories across all iterations
-for key in ['predicted_categories', 'actual_categories']:
-    print(f"\nAverage Category Distributions ({key}):")
-    combined_counts = sum((Counter(cats) for cats in mccv_results[key]), Counter())
-    
-    # Calculate average distribution by dividing total counts by the number of iterations
-    average_distribution = {category: count / num_iterations for category, count in combined_counts.items()}
-    
-    # Print average distribution
-    for category, avg_count in average_distribution.items():
-        print(f"{category}: {avg_count:.2f}")
+
+# Aggregate category results
+final_actual_categories = {player: Counter(categories).most_common(1)[0][0] for player, categories in player_actual_categories.items()}
+final_predicted_categories = {player: Counter(categories).most_common(1)[0][0] for player, categories in player_predicted_categories.items()}
 
 # Compute average success score per player
-average_success_scores = {player: np.mean(scores) for player, scores in player_success_scores.items()}
+average_predicted_success_scores = {player: np.mean(scores) for player, scores in player_success_scores.items()}
 
-# results
-print("\nAverage Predicted Success Score Per Player:")
-for player, avg_score in sorted(average_success_scores.items(), key=lambda x: x[1], reverse=True):
-    print(f"{player}: {avg_score:.4f}")
+print("\n=== Monte Carlo Cross-Validation Results ===")
+
+# Get sorted list of players by predicted success score
+sorted_players = sorted(final_actual_categories.keys(), key=lambda x: average_predicted_success_scores.get(x, 0), reverse=True)
+
+# Define how many players to show from the top and bottom
+num_to_show = 5 
+
+# Select the first and last few players
+top_players = sorted_players[:num_to_show]
+bottom_players = sorted_players[-num_to_show:]
+
+# top players
+print(f"\n--- Top {num_to_show} Players ---")
+for player in top_players:
+    print(f"{player}:")
+    print(f"   - Actual Category: {final_actual_categories.get(player, 'Unknown')}")
+    print(f"   - Predicted Category: {final_predicted_categories.get(player, 'Unknown')}")
+    print(f"   - Average Predicted Success Score: {average_predicted_success_scores.get(player, 'N/A'):.4f}")
+
+# separator 
+print("\n... (skipping middle rows) ...")
+
+# bottom players
+print(f"\n--- Bottom {num_to_show} Players ---")
+for player in bottom_players:
+    print(f"{player}:")
+    print(f"   - Actual Category: {final_actual_categories.get(player, 'Unknown')}")
+    print(f"   - Predicted Category: {final_predicted_categories.get(player, 'Unknown')}")
+    print(f"   - Average Predicted Success Score: {average_predicted_success_scores.get(player, 'N/A'):.4f}")
+
+# Print a summary of the total number of players per category
+print("\n--- Category Distribution Summary ---")
+actual_counts = Counter(final_actual_categories.values())
+predicted_counts = Counter(final_predicted_categories.values())
+
+print("\nActual Category Distribution:")
+for category, count in actual_counts.items():
+    print(f"  {category}: {count} players")
+
+print("\nPredicted Category Distribution:")
+for category, count in predicted_counts.items():
+    print(f"  {category}: {count} players")
+
+print("\n=== End of Monte Carlo Results ===")
