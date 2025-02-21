@@ -7,6 +7,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 from collections import Counter
 from collections import defaultdict
+from sklearn.metrics import classification_report
 
 
 
@@ -137,77 +138,104 @@ target = merged_data['SuccessMetric']
 # Define categorize_player function
 def categorize_player(success_metric):
     if success_metric >= 15:  
-        return "All-Pro"
+        return "All-Pro (Elite)"
     elif success_metric >= 5:  
-        return "Pro Bowler"
+        return "Pro Bowler (Great)"
     elif success_metric >= 1:  
-        return "Starter"
+        return "Starter (Good)"
     elif success_metric >= -2:  
-        return "Backup"
+        return "Backup (Average)"
     else:
-        return "Practice Squad"  
+        return "Practice Squad (Below Average)"  
+
 
 # Monte Carlo Cross Validation
 num_iterations = 100
 
-mccv_results = defaultdict(list)
+# Storage containers
 player_success_scores = defaultdict(list)
-
-# Store the most common predicted and actual category per player
 player_actual_categories = defaultdict(list)
 player_predicted_categories = defaultdict(list)
 
+
 for i in range(num_iterations):
-    X_train, X_test, y_train, y_test = train_test_split(features, target, test_size=0.7, random_state=i)
+    # random_state=i: Ensures a different random split for each iteration.
+    X_train, X_test, y_train, y_test = train_test_split(features, target, test_size=0.1, random_state=i)
     
-    # Train the linear regression model
+    # Trains (fit) the model using the training data 
     model = LinearRegression()
     model.fit(X_train, y_train)
 
     # Predict success scores
     predictions = model.predict(X_test)
 
-    # Store success scores for each player
+    
+    # Loops through each player's name and their predicted success score. Saves each player’s predicted score to player_success_scores.
     for player, score in zip(merged_data.loc[X_test.index, 'Player'], predictions):
         player_success_scores[player].append(score)
 
-    # Categorize predictions
+    # Converts the predicted and actual success scores into categories using categorize_player().
     predicted_categories = [categorize_player(pred) for pred in predictions]
     actual_categories = [categorize_player(actual) for actual in y_test]
 
-    # Store the category predictions for each player
+    # Iterates through each player’s name, actual category, and predicted category and then stores them
     for player, actual, predicted in zip(merged_data.loc[X_test.index, 'Player'], actual_categories, predicted_categories):
         player_actual_categories[player].append(actual)
         player_predicted_categories[player].append(predicted)
 
-    # Store the accuracy and category counts
-    mccv_results['accuracy'].append(
-        sum(p == a for p, a in zip(predicted_categories, actual_categories)) / len(y_test)
-    )
-    mccv_results['predicted_categories'].append(player_predicted_categories)
-    mccv_results['actual_categories'].append(player_actual_categories)
+# Create two empty lists to store actual and predicted categories
+all_actuals = []
+all_predictions = []
+
+# Loops through each player
+for player in player_actual_categories:
+    #  Retrieves the list of actual categories for the player and adds them to all_actuals, all at once
+    all_actuals.extend(player_actual_categories[player])  
+    #  Retrieves the list of predicted categories for the player and adds them to all_predictions, all at once
+    all_predictions.extend(player_predicted_categories[player]) 
+
+# Converts the classification report into a dictionary using output_dict=True, allowing easy access to the values.
+report = classification_report(all_actuals, all_predictions, digits=4, zero_division=0, output_dict=True)
+
+# Generate and print classification report
+print("\n\033[1;33m=== Classification Report ===\033[0m") 
+
+# Explanation of classification metrics
+print("\n\033[1mUnderstanding the Classification Report:\033[0m")
+print("- Precision: Of all the times the model predicted a category, how often was it correct?")
+print("- Recall: Out of all the actual cases for a category, how many did the model correctly identify?")
+print("- F1-score: A balance between precision and recall (higher is better).")
+print("- Support: The number of actual occurrences of the category in the dataset.\n")
+
+# Loop through each category (excluding overall accuracy tests)
+for category, metrics in report.items():
+    if category not in ['accuracy', 'macro avg', 'weighted avg']:
+        precision = metrics["precision"] * 100
+        recall = metrics["recall"] * 100
+        f1_score = metrics["f1-score"] * 100
+        support = metrics["support"]
+
+        print(f"\nCategory: {category}")
+        print(f"  - Precision ({precision:.2f}%) -> When the model predicted \"{category},\" it was correct {precision:.2f}% of the time.")
+        print(f"  - Recall ({recall:.2f}%) -> The model correctly classified {recall:.2f}% of actual \"{category}\" players.")
+        print(f"  - F1-score ({f1_score:.2f}%) -> A balance between precision and recall.")
+        print(f"  - Support ({support}) -> There were {support} actual \"{category}\" players.\n")
+
+# overall accuracy
+accuracy = report["accuracy"] * 100
+print(f"Overall Accuracy: {accuracy:.2f}% -> The model correctly classified {accuracy:.2f}% of all players.\n")
 
 
-# Aggregate results
-mean_accuracy = np.mean(mccv_results['accuracy'])
-std_accuracy = np.std(mccv_results['accuracy'])
-
-
-print("\n=== Monte Carlo Cross-Validation Report ===")
-print(f"\nMean Accuracy: {mean_accuracy:.4f}")
-print(f"Standard Deviation of Accuracy: {std_accuracy:.4f}")
-
-
-# Aggregate category results
+# Finds the most frequently occurring category for each player. This gives us the final category prediction and actual category for each player.
 final_actual_categories = {player: Counter(categories).most_common(1)[0][0] for player, categories in player_actual_categories.items()}
 final_predicted_categories = {player: Counter(categories).most_common(1)[0][0] for player, categories in player_predicted_categories.items()}
 
-# Compute average success score per player
+# Holds the predicted success metric for each player over multiple iterations. Computes the average success metric for each player.
 average_predicted_success_scores = {player: np.mean(scores) for player, scores in player_success_scores.items()}
 
-print("\n=== Monte Carlo Cross-Validation Results ===")
+print("\n\033[1;36m=== Monte Carlo Cross-Validation Results ===\033[0m")
 
-# Get sorted list of players by predicted success score
+# Sorts players in descending order based on their average_predicted_success_scores. If a player is missing a success score, they default to 0.
 sorted_players = sorted(final_actual_categories.keys(), key=lambda x: average_predicted_success_scores.get(x, 0), reverse=True)
 
 # Define how many players to show from the top and bottom
@@ -236,7 +264,7 @@ for player in bottom_players:
     print(f"   - Predicted Category: {final_predicted_categories.get(player, 'Unknown')}")
     print(f"   - Average Predicted Success Score: {average_predicted_success_scores.get(player, 'N/A'):.4f}")
 
-# Print a summary of the total number of players per category
+# Counts how many players fall into each actual and predicted category using Counter().
 print("\n--- Category Distribution Summary ---")
 actual_counts = Counter(final_actual_categories.values())
 predicted_counts = Counter(final_predicted_categories.values())
@@ -249,4 +277,4 @@ print("\nPredicted Category Distribution:")
 for category, count in predicted_counts.items():
     print(f"  {category}: {count} players")
 
-print("\n=== End of Monte Carlo Results ===")
+print("\n\033[1;31m=== End of Monte Carlo Results ===\033[0m")
