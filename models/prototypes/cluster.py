@@ -1,4 +1,4 @@
-"""Prototype for KMeans Clustering."""
+"""Model for kmeans clustering categorization using Monte Carlo cross validation technique.."""
 
 import pandas as pd
 import numpy as np

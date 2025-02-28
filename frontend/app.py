@@ -11,7 +11,7 @@ sys.stdout = NullWriter()
 
 # Add the parent directory to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from models import manual_mccv, cluster_mccv
+from models.mccv import linear_threshold, linear_cluster
 
 # Restore stdout so Flask works properly
 sys.stdout = sys.__stdout__
@@ -19,30 +19,30 @@ sys.stdout = sys.__stdout__
 app = Flask(__name__)
 
 # Extract player names from both models
-players_manual = list(manual_mccv.average_predicted_success_scores.keys())
-players_cluster = list(cluster_mccv.average_predicted_success_scores.keys())
+lt_player_list = list(linear_threshold.player_avg_success_scores.keys())
+lc_player_list = list(linear_cluster.player_avg_success_scores.keys())
 
 # Convert data into a structured format for the webpage
-player_data_manual = [
+linear_threshold_data = [
     {
         "name": player,
-        "actual_category": manual_mccv.final_actual_categories.get(player, "Unknown"),
-        "predicted_category": manual_mccv.final_predicted_categories.get(player, "Unknown"),
-        "actual_score": manual_mccv.target[manual_mccv.merged_data['Player'] == player].values[0] if player in manual_mccv.merged_data['Player'].values else None,
-        "predicted_score": manual_mccv.average_predicted_success_scores.get(player, None),
+        "actual_category": linear_threshold.player_actual_categories.get(player, "Unknown"),
+        "predicted_category": linear_threshold.player_predicted_categories.get(player, "Unknown"),
+        "actual_score": linear_threshold.target[linear_threshold.merged_data['Player'] == player].values[0] if player in linear_threshold.merged_data['Player'].values else None,
+        "predicted_score": linear_threshold.player_avg_success_scores.get(player, None),
     }
-    for player in players_manual
+    for player in lt_player_list
 ]
 
-player_data_cluster = [
+linear_cluster_data = [
     {
         "name": player,
-        "actual_category": cluster_mccv.final_actual_categories.get(player, "Unknown"),
-        "predicted_category": cluster_mccv.final_predicted_categories.get(player, "Unknown"),
-        "actual_score": cluster_mccv.target[cluster_mccv.merged_data['Player'] == player].values[0] if player in cluster_mccv.merged_data['Player'].values else None,
-        "predicted_score": cluster_mccv.average_predicted_success_scores.get(player, None),
+        "actual_category": linear_cluster.player_actual_categories.get(player, "Unknown"),
+        "predicted_category": linear_cluster.player_predicted_categories.get(player, "Unknown"),
+        "actual_score": linear_cluster.target[linear_cluster.merged_data['Player'] == player].values[0] if player in linear_cluster.merged_data['Player'].values else None,
+        "predicted_score": linear_cluster.player_avg_success_scores.get(player, None),
     }
-    for player in players_cluster
+    for player in lc_player_list
 ]
 
 @app.route("/")
@@ -51,11 +51,11 @@ def home():
 
 @app.route("/manual")
 def manual():
-    return render_template("manual.html", players=player_data_manual)
+    return render_template("manual.html", players=linear_threshold_data)
 
 @app.route("/cluster")
 def cluster():
-    return render_template("cluster.html", players=player_data_cluster)
+    return render_template("cluster.html", players=linear_cluster_data)
 
 if __name__ == "__main__":
     app.run(debug=True)

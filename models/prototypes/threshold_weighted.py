@@ -1,4 +1,4 @@
-"""Prototype for manual categorization."""
+"""Model for manual categorization with manual weighted metrics using Monte Carlo cross validation technique."""
 
 import pandas as pd
 import numpy as np
@@ -6,6 +6,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 from collections import Counter
+from collections import defaultdict
+from sklearn.metrics import classification_report
 
 
 
@@ -29,43 +31,45 @@ nfl_stats = pd.read_csv("data/historical-nfl/combined_wr_data.csv")
 nfl_stats['nflYears'] = nfl_stats['nflYears'].astype(float)
 
 # List of columns to normalize and average
-nfl_metrics_to_normalize = ['nflRec', 'nflYds', 'nflTD', 'AP1', 'St', 'PB']
+nfl_metrics = ['nflRec', 'nflYds', 'nflTD', 'AP1', 'St', 'PB']
 
 # Average the metrics by dividing by nflYears
-for metric in nfl_metrics_to_normalize:
+for metric in nfl_metrics:
     nfl_stats[metric + '_avg'] = nfl_stats[metric] / nfl_stats['nflYears']
 
 # Standardize the averaged metrics
 scaler = StandardScaler()
 
 # Generate the list of column names for the normalized columns
-normalized = [metric + '_avg_normalized' for metric in nfl_metrics_to_normalize]
+normalized = [metric + '_avg_normalized' for metric in nfl_metrics]
 
 # Standardize the averaged metrics (normalize by standard deviation)
-nfl_stats[normalized] = scaler.fit_transform(nfl_stats[[metric + '_avg' for metric in nfl_metrics_to_normalize]])
+nfl_stats[normalized] = scaler.fit_transform(nfl_stats[[metric + '_avg' for metric in nfl_metrics]])
+
+print(nfl_stats[normalized])
 
 # Standardize the un-averaged metrics
 nfl_stats['wAV_normalized'] = scaler.fit_transform(nfl_stats[['wAV']])
 
-# Define success metric using the normalized averaged metrics
-nfl_stats['SuccessMetric'] = (nfl_stats['nflYds_avg_normalized'] + nfl_stats['nflTD_avg_normalized'] +
-                               nfl_stats['nflRec_avg_normalized'] + nfl_stats['AP1_avg_normalized'] +
-                               nfl_stats['St_avg_normalized'] + nfl_stats['PB_avg_normalized'] +
-                               nfl_stats['wAV_normalized'])
+# Define weights for SuccessMetric calculation
+success_metric_weights = {
+    'nflYds_avg_normalized': 0.3,
+    'nflTD_avg_normalized': 0.01,
+    'nflRec_avg_normalized': 0.2,
+    'AP1_avg_normalized': 0.1,
+    'St_avg_normalized': 0.1,
+    'PB_avg_normalized': 0.1,
+    'wAV_normalized': 0.19
+}
 
-# def categorize_player(success_metric):
-#     if success_metric >= 15:  
-#         return "All-Pro"
-#     elif success_metric >= 5:  
-#         return "Pro Bowler"
-#     elif success_metric >= 1:  
-#         return "Starter"
-#     elif success_metric >= -2:  
-#         return "Backup"
-#     else:
-#         return "Practice Squad"  
+# Check if the sum of weights equals 1
+if sum(success_metric_weights.values()) != 1:
+    raise ValueError("The sum of the success metric weights must be 1, but it is not.")
 
-# nfl_stats['Category'] = nfl_stats['SuccessMetric'].apply(categorize_player)
+# Compute weighted SuccessMetric
+nfl_stats['SuccessMetric'] = sum(
+    nfl_stats[metric] * weight for metric, weight in success_metric_weights.items()
+)
 
 
 # File paths for the datasets
@@ -135,8 +139,31 @@ merged_data = data.merge(nfl_stats[['Player', 'SuccessMetric']], on='Player', ho
 
 # Features
 features = merged_data[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank', '40yd', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)']]
-                        
-                        #, 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)']]
+
+# Define weights for feature metrics
+feature_weights = {
+    'Rec': 0.1,
+    'Yds': 0.1,
+    'Y/R': 0.15,
+    'Y/G': 0.15,
+    'ConfRank': 0.3,
+    '40yd': 0.1,
+    'G': 0.01,
+    'TD': 0.01,
+    'Height(in)': 0.04,
+    'Weight': 0.01,
+    'Hand(in)': 0.01,
+    'Arm(in)': 0.01,
+    'Wingspan(in)': 0.01
+}
+
+# Check if the sum of weights equals 1
+if sum(feature_weights.values()) != 1:
+    raise ValueError("The sum of the success metric weights must be 1, but it is not.")
+
+# Apply weights to the feature metrics
+for feature, weight in feature_weights.items():
+    features[feature] *= weight
 
 # Normalize the feature metrics (standard deviation normalization)
 features_normalized = scaler.fit_transform(features)
@@ -147,21 +174,22 @@ features_normalized_df = pd.DataFrame(features_normalized, columns=features.colu
 # Target
 target = merged_data['SuccessMetric']
 
+
 # Train-test split
-X_train, X_test, y_train, y_test = train_test_split(features, target, test_size=0.7,)
+X_train, X_test, y_train, y_test = train_test_split(features, target, test_size=0.5,)
 
 # Train the linear regression model
 model = LinearRegression()
 model.fit(X_train, y_train)
 
 def categorize_player(success_metric):
-    if success_metric >= 15:  
+    if success_metric >= 2.5:  
         return "All-Pro"
-    elif success_metric >= 5:  
+    elif success_metric >= .95:  
         return "Pro Bowler"
-    elif success_metric >= 1:  
+    elif success_metric >= .2:  
         return "Starter"
-    elif success_metric >= -2:  
+    elif success_metric >= -.35:  
         return "Backup"
     else:
         return "Practice Squad"  

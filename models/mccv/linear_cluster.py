@@ -1,14 +1,14 @@
-"""Prototype for manual categorization with Monte Carlo cross validation technique."""
+"""Prototype for KMeans Clustering with Monte Carlo cross validation technique."""
 
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
-from collections import Counter
+from sklearn.cluster import KMeans
 from collections import defaultdict
+from collections import Counter
 from sklearn.metrics import classification_report
-
 
 
 # File paths for the datasets
@@ -122,9 +122,7 @@ data = college_stats.merge(measurements, on="Player").merge(combine_stats, on="P
 merged_data = data.merge(nfl_stats[['Player', 'SuccessMetric']], on='Player', how='inner')
 
 # Features
-features = merged_data[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank', '40yd', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)']]
-                        
-                        #, 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)']]
+features = merged_data[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank', '40yd', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)']]                
 
 # Normalize the feature metrics (standard deviation normalization)
 features_normalized = scaler.fit_transform(features)
@@ -135,28 +133,12 @@ features_normalized_df = pd.DataFrame(features_normalized, columns=features.colu
 # Target
 target = merged_data['SuccessMetric']
 
-# Define categorize_player function
-def categorize_player(success_metric):
-    if success_metric >= 15:  
-        return "All-Pro (Elite)"
-    elif success_metric >= 5:  
-        return "Pro Bowler (Great)"
-    elif success_metric >= 1:  
-        return "Starter (Good)"
-    elif success_metric >= -2:  
-        return "Backup (Average)"
-    else:
-        return "Practice Squad (Below Average)"  
-
-
-# Monte Carlo Cross Validation
-num_iterations = 100
+# Number of Monte Carlo iterations
+num_iterations = 1000
 
 # Storage containers
 player_success_scores = defaultdict(list)
-player_actual_categories = defaultdict(list)
-player_predicted_categories = defaultdict(list)
-
+player_actual_categories = {}
 
 for i in range(num_iterations):
     # random_state=i: Ensures a different random split for each iteration.
@@ -165,37 +147,71 @@ for i in range(num_iterations):
     # Trains (fit) the model using the training data 
     model = LinearRegression()
     model.fit(X_train, y_train)
-
+    
     # Predict success scores
     predictions = model.predict(X_test)
-
     
-    # Loops through each player's name and their predicted success score. Saves each player’s predicted score to player_success_scores.
+    # Iterates through each player’s name and predicted success score and then stores them
     for player, score in zip(merged_data.loc[X_test.index, 'Player'], predictions):
         player_success_scores[player].append(score)
+    
+    for player, actual in zip(merged_data.loc[X_test.index, 'Player'], y_test):
+        player_actual_categories[player] = actual
 
-    # Converts the predicted and actual success scores into categories using categorize_player().
-    predicted_categories = [categorize_player(pred) for pred in predictions]
-    actual_categories = [categorize_player(actual) for actual in y_test]
+# Compute average predicted success score for each player
+player_avg_success_scores = {player: np.mean(scores) for player, scores in player_success_scores.items()}
 
-    # Iterates through each player’s name, actual category, and predicted category and then stores them
-    for player, actual, predicted in zip(merged_data.loc[X_test.index, 'Player'], actual_categories, predicted_categories):
-        player_actual_categories[player].append(actual)
-        player_predicted_categories[player].append(predicted)
+# Perform K-Means clustering on average predicted success scores
+avg_success_array = np.array(list(player_avg_success_scores.values())).reshape(-1, 1)
+kmeans = KMeans(n_clusters=5, random_state=42, n_init=10)
+kmeans.fit(avg_success_array)
 
-# Create two empty lists to store actual and predicted categories
-all_actuals = []
-all_predictions = []
+# Sort clusters based on average success score
+cluster_avg_scores = pd.DataFrame({
+    "Cluster": kmeans.labels_,
+    "Score": list(player_avg_success_scores.values())
+}).groupby("Cluster")["Score"].mean().sort_values(ascending=False)
 
-# Loops through each player
-for player in player_actual_categories:
-    #  Retrieves the list of actual categories for the player and adds them to all_actuals, all at once
-    all_actuals.extend(player_actual_categories[player])  
-    #  Retrieves the list of predicted categories for the player and adds them to all_predictions, all at once
-    all_predictions.extend(player_predicted_categories[player]) 
+# Map sorted clusters to categories
+cluster_to_category = {
+    cluster_avg_scores.index[0]: "All-Pro (Elite)",
+    cluster_avg_scores.index[1]: "Pro Bowler (Great)",
+    cluster_avg_scores.index[2]: "Starter (Good)",
+    cluster_avg_scores.index[3]: "Backup (Average)",
+    cluster_avg_scores.index[4]: "Practice Squad (Below Average)"
+}
 
-# Converts the classification report into a dictionary using output_dict=True, allowing easy access to the values.
-report = classification_report(all_actuals, all_predictions, digits=4, zero_division=0, output_dict=True)
+# Assign predicted categories based on clustering
+player_predicted_categories = {player: cluster_to_category[kmeans.labels_[i]] for i, player in enumerate(player_avg_success_scores.keys())}
+
+# Assign actual categories based on clustering the target variable
+actual_success_array = np.array(list(player_actual_categories.values())).reshape(-1, 1)
+kmeans_actual = KMeans(n_clusters=5, random_state=42, n_init=10)
+kmeans_actual.fit(actual_success_array)
+
+actual_cluster_avg_scores = pd.DataFrame({
+    "Cluster": kmeans_actual.labels_,
+    "Score": list(player_actual_categories.values())
+}).groupby("Cluster")["Score"].mean().sort_values(ascending=False)
+
+actual_cluster_to_category = {
+    actual_cluster_avg_scores.index[0]: "All-Pro (Elite)",
+    actual_cluster_avg_scores.index[1]: "Pro Bowler (Great)",
+    actual_cluster_avg_scores.index[2]: "Starter (Good)",
+    actual_cluster_avg_scores.index[3]: "Backup (Average)",
+    actual_cluster_avg_scores.index[4]: "Practice Squad (Below Average)"
+}
+
+player_actual_categories = {player: actual_cluster_to_category[kmeans_actual.labels_[i]] for i, player in enumerate(player_actual_categories.keys())}
+
+# Generate classification report
+all_actual_categories = list(player_actual_categories.values())
+all_prediction_categories = list(player_predicted_categories.values())
+report = classification_report(all_actual_categories, all_prediction_categories, digits=4, zero_division=0, output_dict=True)
+
+
+# Model
+print("\n\033[1;34m=== Cluster_MCCV Model ===\033[0m")
 
 # Generate and print classification report
 print("\n\033[1;33m=== Classification Report ===\033[0m") 
@@ -226,17 +242,11 @@ accuracy = report["accuracy"] * 100
 print(f"Overall Accuracy: {accuracy:.2f}% -> The model correctly classified {accuracy:.2f}% of all players.\n")
 
 
-# Finds the most frequently occurring category for each player. This gives us the final category prediction and actual category for each player.
-final_actual_categories = {player: Counter(categories).most_common(1)[0][0] for player, categories in player_actual_categories.items()}
-final_predicted_categories = {player: Counter(categories).most_common(1)[0][0] for player, categories in player_predicted_categories.items()}
-
-# Holds the predicted success metric for each player over multiple iterations. Computes the average success metric for each player.
-average_predicted_success_scores = {player: np.mean(scores) for player, scores in player_success_scores.items()}
 
 print("\n\033[1;36m=== Monte Carlo Cross-Validation Results ===\033[0m")
 
-# Sorts players in descending order based on their average_predicted_success_scores. If a player is missing a success score, they default to 0.
-sorted_players = sorted(final_actual_categories.keys(), key=lambda x: average_predicted_success_scores.get(x, 0), reverse=True)
+# Sort players in descending order based on their average predicted success scores
+sorted_players = sorted(player_avg_success_scores.keys(), key=lambda x: player_avg_success_scores.get(x, 0), reverse=True)
 
 # Define how many players to show from the top and bottom
 num_to_show = 5 
@@ -245,29 +255,29 @@ num_to_show = 5
 top_players = sorted_players[:num_to_show]
 bottom_players = sorted_players[-num_to_show:]
 
-# top players
+# Top players
 print(f"\n--- Top {num_to_show} Players ---")
 for player in top_players:
     print(f"{player}:")
-    print(f"   - Actual Category: {final_actual_categories.get(player, 'Unknown')}")
-    print(f"   - Predicted Category: {final_predicted_categories.get(player, 'Unknown')}")
-    print(f"   - Average Predicted Success Score: {average_predicted_success_scores.get(player, 'N/A'):.4f}")
+    print(f"   - Actual Category: {player_actual_categories.get(player, 'Unknown')}")
+    print(f"   - Predicted Category: {player_predicted_categories.get(player, 'Unknown')}")
+    print(f"   - Average Predicted Success Score: {player_avg_success_scores.get(player, 'N/A'):.4f}")
 
-# separator 
+# Separator 
 print("\n... (skipping middle rows) ...")
 
-# bottom players
+# Bottom players
 print(f"\n--- Bottom {num_to_show} Players ---")
 for player in bottom_players:
     print(f"{player}:")
-    print(f"   - Actual Category: {final_actual_categories.get(player, 'Unknown')}")
-    print(f"   - Predicted Category: {final_predicted_categories.get(player, 'Unknown')}")
-    print(f"   - Average Predicted Success Score: {average_predicted_success_scores.get(player, 'N/A'):.4f}")
+    print(f"   - Actual Category: {player_actual_categories.get(player, 'Unknown')}")
+    print(f"   - Predicted Category: {player_predicted_categories.get(player, 'Unknown')}")
+    print(f"   - Average Predicted Success Score: {player_avg_success_scores.get(player, 'N/A'):.4f}")
 
-# Counts how many players fall into each actual and predicted category using Counter().
+# Counts how many players fall into each actual and predicted category using Counter()
 print("\n--- Category Distribution Summary ---")
-actual_counts = Counter(final_actual_categories.values())
-predicted_counts = Counter(final_predicted_categories.values())
+actual_counts = Counter(all_actual_categories)
+predicted_counts = Counter(all_prediction_categories)
 
 print("\nActual Category Distribution:")
 for category, count in actual_counts.items():

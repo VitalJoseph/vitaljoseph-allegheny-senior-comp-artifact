@@ -1,14 +1,14 @@
-"""Prototype for KMeans Clustering with Monte Carlo cross validation technique."""
+"""Model for manual categorization with manual weighted metrics using Monte Carlo cross validation technique."""
 
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import KMeans
-from collections import defaultdict
 from collections import Counter
+from collections import defaultdict
 from sklearn.metrics import classification_report
+
 
 
 # File paths for the datasets
@@ -31,29 +31,43 @@ nfl_stats = pd.read_csv("data/historical-nfl/combined_wr_data.csv")
 nfl_stats['nflYears'] = nfl_stats['nflYears'].astype(float)
 
 # List of columns to normalize and average
-nfl_metrics_to_normalize = ['nflRec', 'nflYds', 'nflTD', 'AP1', 'St', 'PB']
+nfl_metrics = ['nflRec', 'nflYds', 'nflTD', 'AP1', 'St', 'PB']
 
 # Average the metrics by dividing by nflYears
-for metric in nfl_metrics_to_normalize:
+for metric in nfl_metrics:
     nfl_stats[metric + '_avg'] = nfl_stats[metric] / nfl_stats['nflYears']
 
 # Standardize the averaged metrics
 scaler = StandardScaler()
 
 # Generate the list of column names for the normalized columns
-normalized = [metric + '_avg_normalized' for metric in nfl_metrics_to_normalize]
+normalized = [metric + '_avg_normalized' for metric in nfl_metrics]
 
 # Standardize the averaged metrics (normalize by standard deviation)
-nfl_stats[normalized] = scaler.fit_transform(nfl_stats[[metric + '_avg' for metric in nfl_metrics_to_normalize]])
+nfl_stats[normalized] = scaler.fit_transform(nfl_stats[[metric + '_avg' for metric in nfl_metrics]])
 
 # Standardize the un-averaged metrics
 nfl_stats['wAV_normalized'] = scaler.fit_transform(nfl_stats[['wAV']])
 
-# Define success metric using the normalized averaged metrics
-nfl_stats['SuccessMetric'] = (nfl_stats['nflYds_avg_normalized'] + nfl_stats['nflTD_avg_normalized'] +
-                               nfl_stats['nflRec_avg_normalized'] + nfl_stats['AP1_avg_normalized'] +
-                               nfl_stats['St_avg_normalized'] + nfl_stats['PB_avg_normalized'] +
-                               nfl_stats['wAV_normalized'])
+# Define weights for SuccessMetric calculation
+success_metric_weights = {
+    'nflYds_avg_normalized': 0.3,
+    'nflTD_avg_normalized': 0.01,
+    'nflRec_avg_normalized': 0.2,
+    'AP1_avg_normalized': 0.1,
+    'St_avg_normalized': 0.1,
+    'PB_avg_normalized': 0.1,
+    'wAV_normalized': 0.19
+}
+
+# Check if the sum of weights equals 1
+if sum(success_metric_weights.values()) != 1:
+    raise ValueError("The sum of the success metric weights must be 1, but it is not.")
+
+# Compute weighted SuccessMetric
+nfl_stats['SuccessMetric'] = sum(
+    nfl_stats[metric] * weight for metric, weight in success_metric_weights.items()
+)
 
 
 # File paths for the datasets
@@ -123,8 +137,31 @@ merged_data = data.merge(nfl_stats[['Player', 'SuccessMetric']], on='Player', ho
 
 # Features
 features = merged_data[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank', '40yd', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)']]
-                        
-                        #, 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)']]                 
+
+# Define weights for feature metrics
+feature_weights = {
+    'Rec': 0.1,
+    'Yds': 0.1,
+    'Y/R': 0.15,
+    'Y/G': 0.15,
+    'ConfRank': 0.3,
+    '40yd': 0.1,
+    'G': 0.01,
+    'TD': 0.01,
+    'Height(in)': 0.04,
+    'Weight': 0.01,
+    'Hand(in)': 0.01,
+    'Arm(in)': 0.01,
+    'Wingspan(in)': 0.01
+}
+
+# Check if the sum of weights equals 1
+if sum(feature_weights.values()) != 1:
+    raise ValueError("The sum of the success metric weights must be 1, but it is not.")
+
+# Apply weights to the feature metrics
+for feature, weight in feature_weights.items():
+    features[feature] *= weight
 
 # Normalize the feature metrics (standard deviation normalization)
 features_normalized = scaler.fit_transform(features)
@@ -135,13 +172,26 @@ features_normalized_df = pd.DataFrame(features_normalized, columns=features.colu
 # Target
 target = merged_data['SuccessMetric']
 
-# Number of Monte Carlo iterations
-num_iterations = 100
+# Define categorize_player function
+def categorize_player(success_metric):
+    if success_metric >= 2.5:  
+        return "All-Pro"
+    elif success_metric >= .95:  
+        return "Pro Bowler"
+    elif success_metric >= .2:  
+        return "Starter"
+    elif success_metric >= -.35:  
+        return "Backup"
+    else:
+        return "Practice Squad"  
+
+
+# Monte Carlo Cross Validation
+num_iterations = 1000
 
 # Storage containers
 player_success_scores = defaultdict(list)
-player_actual_categories = defaultdict(list)
-player_predicted_categories = defaultdict(list)
+player_actual_categories = {}
 
 for i in range(num_iterations):
     # random_state=i: Ensures a different random split for each iteration.
@@ -151,80 +201,33 @@ for i in range(num_iterations):
     model = LinearRegression()
     model.fit(X_train, y_train)
     
-    # Predict and categorize players in the test set
+    # Predict success scores
     predictions = model.predict(X_test)
-
-    # Converts the predictions into a 2D array with one column
-    predictions_reshaped = predictions.reshape(-1, 1)
-
-    # Loops through each player's name and their predicted success score. Saves each player’s predicted score to player_success_scores.
+    
+    # Iterates through each player’s name and predicted success score and then stores them
     for player, score in zip(merged_data.loc[X_test.index, 'Player'], predictions):
         player_success_scores[player].append(score)
     
-    # Creates a K-Means clustering model with 5 groups. Runs the clustering process 10 times to get the best result.
-    kmeans = KMeans(n_clusters=5, random_state=42, n_init=10)
+    # Iterates through each player’s name, actual category based on y_test and then stores them
+    for player, actual in zip(merged_data.loc[X_test.index, 'Player'], y_test):
+        player_actual_categories[player] = categorize_player(actual)
 
-    # Converts actual success scores into a 2D array. 
-    # Combines actual success scores (y_test) and predicted scores into one dataset. 
-    # Runs K-Means clustering on this dataset and assigns each player to a cluster.
-    cluster_labels = kmeans.fit_predict(np.concatenate((y_test.to_numpy().reshape(-1, 1), predictions_reshaped), axis=0))
-    
-    # Stores how many predictions were made.
-    # Extracts the cluster labels for predicted values
-    # Extracts the cluster labels for actual values.
-    num_predictions = len(predictions_reshaped)
-    predicted_clusters = cluster_labels[num_predictions:]
-    actual_clusters = cluster_labels[:len(y_test)]
+# Compute average predicted success score for each player
+player_avg_success_scores = {player: np.mean(scores) for player, scores in player_success_scores.items()}
 
-    # Combines actual and predicted scores into one dataset.
-    # Finds the average success score for each cluster.
-    y_combined = pd.concat([y_test.reset_index(drop=True), pd.Series(predictions)], axis=0)
-    cluster_avg_scores = pd.DataFrame({
-        "Cluster": cluster_labels,             # column contains the cluster number assigned to each player.
-        "Score": y_combined                    # column contains the player's success score.
-    }).groupby("Cluster")["Score"].mean()
+# Assign final predicted categories based on average success scores
+player_predicted_categories = {player: categorize_player(avg_score) for player, avg_score in player_avg_success_scores.items()}
 
-    # Sorts the clusters from highest to lowest based on average success score.
-    sorted_clusters = cluster_avg_scores.sort_values(ascending=False)
+# Prepare lists for evaluation
+all_actual_categories = list(player_actual_categories.values())
+all_prediction_categories = list(player_predicted_categories.values())
 
-    # Map sorted clusters to categories
-    cluster_to_category = {
-        sorted_clusters.index[0]: "All-Pro (Elite)",
-        sorted_clusters.index[1]: "Pro Bowler (Great)",
-        sorted_clusters.index[2]: "Starter (Good)",
-        sorted_clusters.index[3]: "Backup (Average)",
-        sorted_clusters.index[4]: "Practice Squad (Below Average)"
-    }
-
-    # Takes a cluster label as input. Returns the corresponding category name.
-    def categorize_player_automated(cluster_label: int):
-        return cluster_to_category.get(cluster_label, "Unknown")
-    
-    # Loops through all players' predicted and actual clusters and assigns them a category.
-    predicted_categories = [categorize_player_automated(cluster) for cluster in predicted_clusters]
-    actual_categories = [categorize_player_automated(cluster) for cluster in actual_clusters]
-
-    # Iterates through each player’s name, actual category, and predicted category and then stores them
-    for player, actual, predicted in zip(merged_data.loc[X_test.index, 'Player'], actual_categories, predicted_categories):
-        player_actual_categories[player].append(actual)
-        player_predicted_categories[player].append(predicted)
+# Generate classification report
+report = classification_report(all_actual_categories, all_prediction_categories, digits=4, zero_division=0, output_dict=True)
 
 
-
-
-# Create two empty lists to store actual and predicted categories
-all_actuals = []
-all_predictions = []
-
-# Loops through each player
-for player in player_actual_categories:
-    #  Retrieves the list of actual categories for the player and adds them to all_actuals, all at once
-    all_actuals.extend(player_actual_categories[player])  
-    #  Retrieves the list of predicted categories for the player and adds them to all_predictions, all at once
-    all_predictions.extend(player_predicted_categories[player]) 
-
-# Converts the classification report into a dictionary using output_dict=True, allowing easy access to the values.
-report = classification_report(all_actuals, all_predictions, digits=4, zero_division=0, output_dict=True)
+# Model
+print("\n\033[1;34m=== Manual_Weights_MCCV Model ===\033[0m") 
 
 # Generate and print classification report
 print("\n\033[1;33m=== Classification Report ===\033[0m") 
@@ -255,17 +258,11 @@ accuracy = report["accuracy"] * 100
 print(f"Overall Accuracy: {accuracy:.2f}% -> The model correctly classified {accuracy:.2f}% of all players.\n")
 
 
-# Finds the most frequently occurring category for each player. This gives us the final category prediction and actual category for each player.
-final_actual_categories = {player: Counter(categories).most_common(1)[0][0] for player, categories in player_actual_categories.items()}
-final_predicted_categories = {player: Counter(categories).most_common(1)[0][0] for player, categories in player_predicted_categories.items()}
-
-# Holds the predicted success metric for each player over multiple iterations. Computes the average success metric for each player.
-average_predicted_success_scores = {player: np.mean(scores) for player, scores in player_success_scores.items()}
 
 print("\n\033[1;36m=== Monte Carlo Cross-Validation Results ===\033[0m")
 
-# Sorts players in descending order based on their average_predicted_success_scores. If a player is missing a success score, they default to 0.
-sorted_players = sorted(final_actual_categories.keys(), key=lambda x: average_predicted_success_scores.get(x, 0), reverse=True)
+# Sort players in descending order based on their average predicted success scores
+sorted_players = sorted(player_avg_success_scores.keys(), key=lambda x: player_avg_success_scores.get(x, 0), reverse=True)
 
 # Define how many players to show from the top and bottom
 num_to_show = 5 
@@ -274,29 +271,29 @@ num_to_show = 5
 top_players = sorted_players[:num_to_show]
 bottom_players = sorted_players[-num_to_show:]
 
-# top players
+# Top players
 print(f"\n--- Top {num_to_show} Players ---")
 for player in top_players:
     print(f"{player}:")
-    print(f"   - Actual Category: {final_actual_categories.get(player, 'Unknown')}")
-    print(f"   - Predicted Category: {final_predicted_categories.get(player, 'Unknown')}")
-    print(f"   - Average Predicted Success Score: {average_predicted_success_scores.get(player, 'N/A'):.4f}")
+    print(f"   - Actual Category: {player_actual_categories.get(player, 'Unknown')}")
+    print(f"   - Predicted Category: {player_predicted_categories.get(player, 'Unknown')}")
+    print(f"   - Average Predicted Success Score: {player_avg_success_scores.get(player, 'N/A'):.4f}")
 
-# separator 
+# Separator 
 print("\n... (skipping middle rows) ...")
 
-# bottom players
+# Bottom players
 print(f"\n--- Bottom {num_to_show} Players ---")
 for player in bottom_players:
     print(f"{player}:")
-    print(f"   - Actual Category: {final_actual_categories.get(player, 'Unknown')}")
-    print(f"   - Predicted Category: {final_predicted_categories.get(player, 'Unknown')}")
-    print(f"   - Average Predicted Success Score: {average_predicted_success_scores.get(player, 'N/A'):.4f}")
+    print(f"   - Actual Category: {player_actual_categories.get(player, 'Unknown')}")
+    print(f"   - Predicted Category: {player_predicted_categories.get(player, 'Unknown')}")
+    print(f"   - Average Predicted Success Score: {player_avg_success_scores.get(player, 'N/A'):.4f}")
 
-# Counts how many players fall into each actual and predicted category using Counter().
+# Counts how many players fall into each actual and predicted category using Counter()
 print("\n--- Category Distribution Summary ---")
-actual_counts = Counter(final_actual_categories.values())
-predicted_counts = Counter(final_predicted_categories.values())
+actual_counts = Counter(all_actual_categories)
+predicted_counts = Counter(all_prediction_categories)
 
 print("\nActual Category Distribution:")
 for category, count in actual_counts.items():
