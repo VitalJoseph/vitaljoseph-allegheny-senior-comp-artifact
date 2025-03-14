@@ -15,6 +15,7 @@ from sklearn.metrics import classification_report
 
 # File paths for the datasets
 file_paths_nfl = [
+    "data/historical-nfl/2018wr.csv",
     "data/historical-nfl/2019wr.csv",
     "data/historical-nfl/2020wr.csv",
     "data/historical-nfl/2021wr.csv",
@@ -37,7 +38,7 @@ nfl_metrics_to_normalize = ['nflRec', 'nflYds', 'nflTD', 'AP1', 'St', 'PB']
 
 # Average the metrics by dividing by nflYears
 for metric in nfl_metrics_to_normalize:
-    nfl_stats[metric + '_avg'] = nfl_stats[metric] / nfl_stats['nflYears']
+    nfl_stats[metric + '_avg'] = nfl_stats[metric] / nfl_stats['G']
 
 # Standardize the averaged metrics
 scaler = StandardScaler()
@@ -60,6 +61,7 @@ nfl_stats['SuccessMetric'] = (nfl_stats['nflYds_avg_normalized'] + nfl_stats['nf
 
 # File paths for the datasets
 file_paths_measurements = [
+    "data/historical-measurements/2018wr.csv",
     "data/historical-measurements/2019wr.csv",
     "data/historical-measurements/2020wr.csv",
     "data/historical-measurements/2021wr.csv",
@@ -67,6 +69,7 @@ file_paths_measurements = [
 ]
 
 file_paths_combine = [
+    "data/historical-combine/2018wr.csv",
     "data/historical-combine/2019wr.csv",
     "data/historical-combine/2020wr.csv",
     "data/historical-combine/2021wr.csv",
@@ -74,6 +77,7 @@ file_paths_combine = [
 ]
 
 file_paths_college = [
+    "data/historical-college/2018wr.csv",
     "data/historical-college/2019wr.csv",
     "data/historical-college/2020wr.csv",
     "data/historical-college/2021wr.csv",
@@ -123,8 +127,11 @@ data = college_stats.merge(measurements, on="Player").merge(combine_stats, on="P
 # Ensure that the players in the target and features match
 merged_data = data.merge(nfl_stats[['Player', 'SuccessMetric']], on='Player', how='inner')
 
-# Features
-features = merged_data[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank', '40yd', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)']]
+# Faster is better
+merged_data['40yd_inv'] = 1 / merged_data['40yd']
+
+# Use transformed features in your model
+features = merged_data[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank', '40yd_inv', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)', 'HSrank']]
 
 # Normalize the feature metrics (standard deviation normalization)
 features_normalized = scaler.fit_transform(features)
@@ -137,16 +144,28 @@ target = merged_data['SuccessMetric']
 
 # Define categorize_player function
 def categorize_player(success_metric):
-    if success_metric >= 15:  
-        return "All-Pro (Elite)"
-    elif success_metric >= 5:  
-        return "Pro Bowler (Great)"
+    if success_metric >= 5.5:  
+        return "Pro Bowler or Better (Great to Elite)"
     elif success_metric >= 1:  
         return "Starter (Good)"
     elif success_metric >= -2:  
         return "Backup (Average)"
     else:
         return "Practice Squad (Below Average)"  
+    
+
+# # Define categorize_player function
+# def categorize_player(success_metric):
+#     if success_metric >= 15:  
+#         return "All-Pro (Elite)"
+#     elif success_metric >= 5:  
+#         return "Pro Bowler (Great)"
+#     elif success_metric >= 1:  
+#         return "Starter (Good)"
+#     elif success_metric >= -2:  
+#         return "Backup (Average)"
+#     else:
+#         return "Practice Squad (Below Average)"  
 
 
 # Monte Carlo Cross Validation
@@ -155,32 +174,71 @@ num_iterations = 1000
 # Storage containers
 player_success_scores = defaultdict(list)
 player_actual_categories = {}
+player_actual_scores = {}
+all_importances = []
 
-# Feature selection using Random Forest
-temp_model = RandomForestRegressor(n_estimators=200, random_state=42, max_depth=10, min_samples_split=5, min_samples_leaf=2)
-temp_model.fit(features, target)
-selector = SelectFromModel(temp_model, threshold='median', prefit=True)
-selected_features = features.columns[selector.get_support()]
-features_selected = selector.transform(features)
+# # Feature selection using Random Forest
+# temp_model = RandomForestRegressor(n_estimators=200, random_state=42, max_depth=10, min_samples_split=5, min_samples_leaf=2)
+# temp_model.fit(features_normalized_df, target)
+# selector = SelectFromModel(temp_model, threshold='median', prefit=True)
+
+# # Apply feature selection while keeping it as a DataFrame
+# features_selected_df = features_normalized_df.loc[:, selector.get_support()]
+
+# Dictionary to store cumulative importance values
+feature_importance_sums = {feature: 0 for feature in features_normalized_df}
 
 for i in range(num_iterations):
     # Random split for each iteration
-    X_train, X_test, y_train, y_test = train_test_split(features_selected, target, test_size=0.1, random_state=i)
+    X_train, X_test, y_train, y_test = train_test_split(features_normalized_df, target, test_size=0.1, random_state=i)
     
     # Train the Random Forest model with optimized hyperparameters
-    model = RandomForestRegressor(n_estimators=200, max_depth=10, min_samples_split=5, min_samples_leaf=2, random_state=i)
+    model = RandomForestRegressor(n_estimators=200, max_depth=10, min_samples_split=5, min_samples_leaf=2, random_state=i, n_jobs=-1)
     model.fit(X_train, y_train)
+
+
+    # Define your own custom weights
+    custom_importances = np.array([1, 1, 1, .5, 1, .25, 4, .25, .1, .1, .1, .1, .1, .5])
+
+    # Get feature importance
+    model.feature_importances_ = custom_importances
+
+    # Store coefficients
+    all_importances.append(model.feature_importances_)
+
+    
+    # # Accumulate importance values for averaging later
+    # for feature, importance in zip(features_normalized_df, feature_importance):
+    #     feature_importance_sums[feature] += importance
     
     # Predict success scores
     predictions = model.predict(X_test)
     
-    # Store predicted success scores
-    for player, score in zip(merged_data.loc[X_test.index, 'Player'], predictions):
-        player_success_scores[player].append(score)
-    
-    # Store actual categories
-    for player, actual in zip(merged_data.loc[X_test.index, 'Player'], y_test):
-        player_actual_categories[player] = categorize_player(actual)
+    # Store predictions and actual values
+    for player, pred_score, actual_score in zip(merged_data.loc[X_test.index, 'Player'], predictions, y_test):
+        player_success_scores[player].append(pred_score)  # Store predicted scores
+        player_actual_scores[player] = actual_score  # Store actual success score
+        player_actual_categories[player] = categorize_player(actual_score)  # Store categorized version
+
+
+# Compute overall average coefficients
+average_importances = np.mean(all_importances, axis=0)
+
+# Get feature names
+feature_names = features_normalized_df.columns
+
+# Print feature-coefficient mapping
+print("\n\033[1;32m=== Engineered Feature Importances ===\033[0m\n")
+for feature, importance in zip(feature_names, average_importances):
+    print(f"{feature}: {importance:.6f}")
+
+# # Compute the average importance over all iterations
+# average_feature_importance = {feature: imp / num_iterations for feature, imp in feature_importance_sums.items()}
+
+# # Print the average feature importance values
+# print("\n\033[1;32m=== Overall Feature Importance Scores ===\033[0m\n")
+# for feature, importance in sorted(average_feature_importance.items(), key=lambda x: x[1], reverse=True):
+#     print(f"{feature}: {importance:.4f}")
 
 # Compute average predicted success score for each player
 player_avg_success_scores = {player: np.mean(scores) for player, scores in player_success_scores.items()}
@@ -197,7 +255,7 @@ report = classification_report(all_actual_categories, all_prediction_categories,
 
 
 # Model
-print("\n\033[1;34m=== Manual_MCCV Model ===\033[0m") 
+print("\n\033[1;34m=== RF_Threshold_MCCV Model ===\033[0m") 
 
 # Generate and print classification report
 print("\n\033[1;33m=== Classification Report ===\033[0m") 
@@ -245,6 +303,7 @@ bottom_players = sorted_players[-num_to_show:]
 print(f"\n--- Top {num_to_show} Players ---")
 for player in top_players:
     print(f"{player}:")
+    print(f"   - Actual Success Score: {player_actual_scores.get(player, 'N/A'):.4f}")
     print(f"   - Actual Category: {player_actual_categories.get(player, 'Unknown')}")
     print(f"   - Predicted Category: {player_predicted_categories.get(player, 'Unknown')}")
     print(f"   - Average Predicted Success Score: {player_avg_success_scores.get(player, 'N/A'):.4f}")
@@ -256,6 +315,7 @@ print("\n... (skipping middle rows) ...")
 print(f"\n--- Bottom {num_to_show} Players ---")
 for player in bottom_players:
     print(f"{player}:")
+    print(f"   - Actual Success Score: {player_actual_scores.get(player, 'N/A'):.4f}")
     print(f"   - Actual Category: {player_actual_categories.get(player, 'Unknown')}")
     print(f"   - Predicted Category: {player_predicted_categories.get(player, 'Unknown')}")
     print(f"   - Average Predicted Success Score: {player_avg_success_scores.get(player, 'N/A'):.4f}")

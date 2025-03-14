@@ -1,4 +1,4 @@
-"""Model for manual categorization with manual weighted metrics using Monte Carlo cross validation technique."""
+"""Linear Regression Model using manual categorization with manual weighted metrics ran through Monte Carlo cross validation test."""
 
 import pandas as pd
 import numpy as np
@@ -13,6 +13,7 @@ from sklearn.metrics import classification_report
 
 # File paths for the datasets
 file_paths_nfl = [
+    "data/historical-nfl/2018wr.csv",
     "data/historical-nfl/2019wr.csv",
     "data/historical-nfl/2020wr.csv",
     "data/historical-nfl/2021wr.csv",
@@ -35,7 +36,7 @@ nfl_metrics = ['nflRec', 'nflYds', 'nflTD', 'AP1', 'St', 'PB']
 
 # Average the metrics by dividing by nflYears
 for metric in nfl_metrics:
-    nfl_stats[metric + '_avg'] = nfl_stats[metric] / nfl_stats['nflYears']
+    nfl_stats[metric + '_avg'] = nfl_stats[metric] / nfl_stats['G']
 
 # Standardize the averaged metrics
 scaler = StandardScaler()
@@ -49,20 +50,23 @@ nfl_stats[normalized] = scaler.fit_transform(nfl_stats[[metric + '_avg' for metr
 # Standardize the un-averaged metrics
 nfl_stats['wAV_normalized'] = scaler.fit_transform(nfl_stats[['wAV']])
 
+# # Define success metric using the normalized averaged metrics
+# nfl_stats['SuccessMetric'] = (nfl_stats['nflYds_avg_normalized'] + nfl_stats['nflTD_avg_normalized'] +
+#                                nfl_stats['nflRec_avg_normalized'] + nfl_stats['AP1_avg_normalized'] +
+#                                nfl_stats['St_avg_normalized'] + nfl_stats['PB_avg_normalized'] +
+#                                nfl_stats['wAV_normalized'])
+
 # Define weights for SuccessMetric calculation
 success_metric_weights = {
-    'nflYds_avg_normalized': 0.3,
-    'nflTD_avg_normalized': 0.01,
-    'nflRec_avg_normalized': 0.2,
-    'AP1_avg_normalized': 0.1,
-    'St_avg_normalized': 0.1,
-    'PB_avg_normalized': 0.1,
-    'wAV_normalized': 0.19
+    'nflYds_avg_normalized': .6,
+    'nflTD_avg_normalized': .5,
+    'nflRec_avg_normalized': .6,
+    'AP1_avg_normalized': .8,
+    'St_avg_normalized': .4,
+    'PB_avg_normalized': .4,
+    'wAV_normalized': .4
 }
 
-# Check if the sum of weights equals 1
-if sum(success_metric_weights.values()) != 1:
-    raise ValueError("The sum of the success metric weights must be 1, but it is not.")
 
 # Compute weighted SuccessMetric
 nfl_stats['SuccessMetric'] = sum(
@@ -72,6 +76,7 @@ nfl_stats['SuccessMetric'] = sum(
 
 # File paths for the datasets
 file_paths_measurements = [
+    "data/historical-measurements/2018wr.csv",
     "data/historical-measurements/2019wr.csv",
     "data/historical-measurements/2020wr.csv",
     "data/historical-measurements/2021wr.csv",
@@ -79,6 +84,7 @@ file_paths_measurements = [
 ]
 
 file_paths_combine = [
+    "data/historical-combine/2018wr.csv",
     "data/historical-combine/2019wr.csv",
     "data/historical-combine/2020wr.csv",
     "data/historical-combine/2021wr.csv",
@@ -86,6 +92,7 @@ file_paths_combine = [
 ]
 
 file_paths_college = [
+    "data/historical-college/2018wr.csv",
     "data/historical-college/2019wr.csv",
     "data/historical-college/2020wr.csv",
     "data/historical-college/2021wr.csv",
@@ -135,33 +142,11 @@ data = college_stats.merge(measurements, on="Player").merge(combine_stats, on="P
 # Ensure that the players in the target and features match
 merged_data = data.merge(nfl_stats[['Player', 'SuccessMetric']], on='Player', how='inner')
 
+# Faster is better
+merged_data['40yd_inv'] = 1 / merged_data['40yd']
+
 # Features
-features = merged_data[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank', '40yd', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)']]
-
-# Define weights for feature metrics
-feature_weights = {
-    'Rec': 0.1,
-    'Yds': 0.1,
-    'Y/R': 0.15,
-    'Y/G': 0.15,
-    'ConfRank': 0.3,
-    '40yd': 0.1,
-    'G': 0.01,
-    'TD': 0.01,
-    'Height(in)': 0.04,
-    'Weight': 0.01,
-    'Hand(in)': 0.01,
-    'Arm(in)': 0.01,
-    'Wingspan(in)': 0.01
-}
-
-# Check if the sum of weights equals 1
-if sum(feature_weights.values()) != 1:
-    raise ValueError("The sum of the success metric weights must be 1, but it is not.")
-
-# Apply weights to the feature metrics
-for feature, weight in feature_weights.items():
-    features[feature] *= weight
+features = merged_data[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank', '40yd_inv', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)', 'HSrank']]
 
 # Normalize the feature metrics (standard deviation normalization)
 features_normalized = scaler.fit_transform(features)
@@ -174,16 +159,14 @@ target = merged_data['SuccessMetric']
 
 # Define categorize_player function
 def categorize_player(success_metric):
-    if success_metric >= 2.5:  
-        return "All-Pro"
-    elif success_metric >= .95:  
-        return "Pro Bowler"
-    elif success_metric >= .2:  
-        return "Starter"
-    elif success_metric >= -.35:  
-        return "Backup"
+    if success_metric >= 5.5:  
+        return "Pro Bowler or Better (Great to Elite)"
+    elif success_metric >= 1:  
+        return "Starter (Good)"
+    elif success_metric >= -2:  
+        return "Backup (Average)"
     else:
-        return "Practice Squad"  
+        return "Practice Squad (Below Average)"  
 
 
 # Monte Carlo Cross Validation
@@ -192,31 +175,57 @@ num_iterations = 1000
 # Storage containers
 player_success_scores = defaultdict(list)
 player_actual_categories = {}
+player_actual_scores = {}
+all_coefficients = []  # Stores coefficients from each iteration
 
 for i in range(num_iterations):
     # random_state=i: Ensures a different random split for each iteration.
-    X_train, X_test, y_train, y_test = train_test_split(features, target, test_size=0.1, random_state=i)
+    X_train, X_test, y_train, y_test = train_test_split(features_normalized_df, target, test_size=0.1, random_state=i)
     
     # Trains (fit) the model using the training data 
     model = LinearRegression()
     model.fit(X_train, y_train)
+
+    # Define your own custom weights 
+    custom_weights = np.array([1, 1, 1, .5, 1, .25, 4, .25, .1, .1, .1, .1, .1, .5])
+
+    # Manually set the coefficients
+    model.coef_ = custom_weights
+
+    # Store coefficients
+    all_coefficients.append(model.coef_)  # Append coefficients of this iteration
     
     # Predict success scores
     predictions = model.predict(X_test)
     
-    # Iterates through each player’s name and predicted success score and then stores them
-    for player, score in zip(merged_data.loc[X_test.index, 'Player'], predictions):
-        player_success_scores[player].append(score)
-    
-    # Iterates through each player’s name, actual category based on y_test and then stores them
-    for player, actual in zip(merged_data.loc[X_test.index, 'Player'], y_test):
-        player_actual_categories[player] = categorize_player(actual)
+    # Store predictions and actual values
+    for player, pred_score, actual_score in zip(merged_data.loc[X_test.index, 'Player'], predictions, y_test):
+        player_success_scores[player].append(pred_score)  # Store predicted scores
+        player_actual_scores[player] = actual_score  # Store actual success score
+        player_actual_categories[player] = categorize_player(actual_score)  # Store categorized version
+
+# Compute the sum of weights
+sum_weights = np.sum(custom_weights)
+print(f"Sum of weights: {sum_weights}")
+
+# Compute overall average coefficients
+average_coefficients = np.mean(all_coefficients, axis=0)
+
+# Get feature names
+feature_names = features_normalized_df.columns
+
+# Print feature-coefficient mapping
+print("\n\033[1;32m=== Engineered Model Coefficients ===\033[0m\n")
+for feature, coef in zip(feature_names, average_coefficients):
+    print(f"{feature}: {coef:.3f}")
+
 
 # Compute average predicted success score for each player
 player_avg_success_scores = {player: np.mean(scores) for player, scores in player_success_scores.items()}
 
 # Assign final predicted categories based on average success scores
 player_predicted_categories = {player: categorize_player(avg_score) for player, avg_score in player_avg_success_scores.items()}
+
 
 # Prepare lists for evaluation
 all_actual_categories = list(player_actual_categories.values())
@@ -227,7 +236,7 @@ report = classification_report(all_actual_categories, all_prediction_categories,
 
 
 # Model
-print("\n\033[1;34m=== Manual_Weights_MCCV Model ===\033[0m") 
+print("\n\033[1;34m=== Linear_Threshold_Weighted_MCCV Model ===\033[0m") 
 
 # Generate and print classification report
 print("\n\033[1;33m=== Classification Report ===\033[0m") 
@@ -275,9 +284,11 @@ bottom_players = sorted_players[-num_to_show:]
 print(f"\n--- Top {num_to_show} Players ---")
 for player in top_players:
     print(f"{player}:")
+    print(f"   - Actual Success Score: {player_actual_scores.get(player, 'N/A'):.4f}")
     print(f"   - Actual Category: {player_actual_categories.get(player, 'Unknown')}")
     print(f"   - Predicted Category: {player_predicted_categories.get(player, 'Unknown')}")
     print(f"   - Average Predicted Success Score: {player_avg_success_scores.get(player, 'N/A'):.4f}")
+    
 
 # Separator 
 print("\n... (skipping middle rows) ...")
@@ -286,6 +297,7 @@ print("\n... (skipping middle rows) ...")
 print(f"\n--- Bottom {num_to_show} Players ---")
 for player in bottom_players:
     print(f"{player}:")
+    print(f"   - Actual Success Score: {player_actual_scores.get(player, 'N/A'):.4f}")
     print(f"   - Actual Category: {player_actual_categories.get(player, 'Unknown')}")
     print(f"   - Predicted Category: {player_predicted_categories.get(player, 'Unknown')}")
     print(f"   - Average Predicted Success Score: {player_avg_success_scores.get(player, 'N/A'):.4f}")

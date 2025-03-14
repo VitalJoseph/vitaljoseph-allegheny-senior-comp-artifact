@@ -13,6 +13,7 @@ from sklearn.metrics import classification_report
 
 # File paths for the datasets
 file_paths_nfl = [
+    "data/historical-nfl/2018wr.csv",
     "data/historical-nfl/2019wr.csv",
     "data/historical-nfl/2020wr.csv",
     "data/historical-nfl/2021wr.csv",
@@ -35,7 +36,7 @@ nfl_metrics_to_normalize = ['nflRec', 'nflYds', 'nflTD', 'AP1', 'St', 'PB']
 
 # Average the metrics by dividing by nflYears
 for metric in nfl_metrics_to_normalize:
-    nfl_stats[metric + '_avg'] = nfl_stats[metric] / nfl_stats['nflYears']
+    nfl_stats[metric + '_avg'] = nfl_stats[metric] / nfl_stats['G']
 
 # Standardize the averaged metrics
 scaler = StandardScaler()
@@ -58,6 +59,7 @@ nfl_stats['SuccessMetric'] = (nfl_stats['nflYds_avg_normalized'] + nfl_stats['nf
 
 # File paths for the datasets
 file_paths_measurements = [
+    "data/historical-measurements/2018wr.csv",
     "data/historical-measurements/2019wr.csv",
     "data/historical-measurements/2020wr.csv",
     "data/historical-measurements/2021wr.csv",
@@ -65,6 +67,7 @@ file_paths_measurements = [
 ]
 
 file_paths_combine = [
+    "data/historical-combine/2018wr.csv",
     "data/historical-combine/2019wr.csv",
     "data/historical-combine/2020wr.csv",
     "data/historical-combine/2021wr.csv",
@@ -72,6 +75,7 @@ file_paths_combine = [
 ]
 
 file_paths_college = [
+    "data/historical-college/2018wr.csv",
     "data/historical-college/2019wr.csv",
     "data/historical-college/2020wr.csv",
     "data/historical-college/2021wr.csv",
@@ -121,8 +125,11 @@ data = college_stats.merge(measurements, on="Player").merge(combine_stats, on="P
 # Ensure that the players in the target and features match
 merged_data = data.merge(nfl_stats[['Player', 'SuccessMetric']], on='Player', how='inner')
 
-# Features
-features = merged_data[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank', '40yd', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)']]                
+# Faster is better
+merged_data['40yd_inv'] = 1 / merged_data['40yd']
+
+# Use transformed features in your model
+features = merged_data[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank', '40yd_inv', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)', 'HSrank']]              
 
 # Normalize the feature metrics (standard deviation normalization)
 features_normalized = scaler.fit_transform(features)
@@ -138,7 +145,8 @@ num_iterations = 1000
 
 # Storage containers
 player_success_scores = defaultdict(list)
-player_actual_categories = {}
+player_actual_scores = {}
+all_coefficients = []  # Stores coefficients from each iteration
 
 for i in range(num_iterations):
     # random_state=i: Ensures a different random split for each iteration.
@@ -147,6 +155,9 @@ for i in range(num_iterations):
     # Trains (fit) the model using the training data 
     model = LinearRegression()
     model.fit(X_train, y_train)
+
+    # Store coefficients
+    all_coefficients.append(model.coef_)  # Append coefficients of this iteration
     
     # Predict success scores
     predictions = model.predict(X_test)
@@ -155,15 +166,30 @@ for i in range(num_iterations):
     for player, score in zip(merged_data.loc[X_test.index, 'Player'], predictions):
         player_success_scores[player].append(score)
     
-    for player, actual in zip(merged_data.loc[X_test.index, 'Player'], y_test):
-        player_actual_categories[player] = actual
+    # for player, actual in zip(merged_data.loc[X_test.index, 'Player'], y_test):
+    #     player_actual_categories[player] = actual
+
+    for player, actual_score in zip(merged_data.loc[X_test.index, 'Player'], y_test):
+        player_actual_scores[player] = actual_score
+
+
+# Compute overall average coefficients
+average_coefficients = np.mean(all_coefficients, axis=0)
+
+# Get feature names
+feature_names = features_normalized_df.columns
+
+# Print feature-coefficient mapping
+print("\n\033[1;32m=== Overall Model Coefficients ===\033[0m\n")
+for feature, coef in zip(feature_names, average_coefficients):
+    print(f"{feature}: {coef:.6f}")
 
 # Compute average predicted success score for each player
 player_avg_success_scores = {player: np.mean(scores) for player, scores in player_success_scores.items()}
 
 # Perform K-Means clustering on average predicted success scores
 avg_success_array = np.array(list(player_avg_success_scores.values())).reshape(-1, 1)
-kmeans = KMeans(n_clusters=5, random_state=42, n_init=10)
+kmeans = KMeans(n_clusters=4, random_state=42, n_init=100)
 kmeans.fit(avg_success_array)
 
 # Sort clusters based on average success score
@@ -174,35 +200,33 @@ cluster_avg_scores = pd.DataFrame({
 
 # Map sorted clusters to categories
 cluster_to_category = {
-    cluster_avg_scores.index[0]: "All-Pro (Elite)",
-    cluster_avg_scores.index[1]: "Pro Bowler (Great)",
-    cluster_avg_scores.index[2]: "Starter (Good)",
-    cluster_avg_scores.index[3]: "Backup (Average)",
-    cluster_avg_scores.index[4]: "Practice Squad (Below Average)"
+    cluster_avg_scores.index[0]: "Pro Bowler or Better (Great to Elite)",
+    cluster_avg_scores.index[1]: "Starter (Good)",
+    cluster_avg_scores.index[2]: "Backup (Average)",
+    cluster_avg_scores.index[3]: "Practice Squad (Below Average)"
 }
 
 # Assign predicted categories based on clustering
 player_predicted_categories = {player: cluster_to_category[kmeans.labels_[i]] for i, player in enumerate(player_avg_success_scores.keys())}
 
 # Assign actual categories based on clustering the target variable
-actual_success_array = np.array(list(player_actual_categories.values())).reshape(-1, 1)
-kmeans_actual = KMeans(n_clusters=5, random_state=42, n_init=10)
+actual_success_array = np.array(list(player_actual_scores.values())).reshape(-1, 1)
+kmeans_actual = KMeans(n_clusters=4, random_state=42, n_init=100)
 kmeans_actual.fit(actual_success_array)
 
 actual_cluster_avg_scores = pd.DataFrame({
     "Cluster": kmeans_actual.labels_,
-    "Score": list(player_actual_categories.values())
+    "Score": list(player_actual_scores.values())
 }).groupby("Cluster")["Score"].mean().sort_values(ascending=False)
 
 actual_cluster_to_category = {
-    actual_cluster_avg_scores.index[0]: "All-Pro (Elite)",
-    actual_cluster_avg_scores.index[1]: "Pro Bowler (Great)",
-    actual_cluster_avg_scores.index[2]: "Starter (Good)",
-    actual_cluster_avg_scores.index[3]: "Backup (Average)",
-    actual_cluster_avg_scores.index[4]: "Practice Squad (Below Average)"
+    actual_cluster_avg_scores.index[0]: "Pro Bowler or Better (Great to Elite)",
+    actual_cluster_avg_scores.index[1]: "Starter (Good)",
+    actual_cluster_avg_scores.index[2]: "Backup (Average)",
+    actual_cluster_avg_scores.index[3]: "Practice Squad (Below Average)"
 }
 
-player_actual_categories = {player: actual_cluster_to_category[kmeans_actual.labels_[i]] for i, player in enumerate(player_actual_categories.keys())}
+player_actual_categories = {player: actual_cluster_to_category[kmeans_actual.labels_[i]] for i, player in enumerate(player_actual_scores.keys())}
 
 # Generate classification report
 all_actual_categories = list(player_actual_categories.values())
@@ -259,6 +283,7 @@ bottom_players = sorted_players[-num_to_show:]
 print(f"\n--- Top {num_to_show} Players ---")
 for player in top_players:
     print(f"{player}:")
+    print(f"   - Actual Success Score: {player_actual_scores.get(player, 'N/A'):.4f}")
     print(f"   - Actual Category: {player_actual_categories.get(player, 'Unknown')}")
     print(f"   - Predicted Category: {player_predicted_categories.get(player, 'Unknown')}")
     print(f"   - Average Predicted Success Score: {player_avg_success_scores.get(player, 'N/A'):.4f}")
@@ -270,6 +295,7 @@ print("\n... (skipping middle rows) ...")
 print(f"\n--- Bottom {num_to_show} Players ---")
 for player in bottom_players:
     print(f"{player}:")
+    print(f"   - Actual Success Score: {player_actual_scores.get(player, 'N/A'):.4f}")
     print(f"   - Actual Category: {player_actual_categories.get(player, 'Unknown')}")
     print(f"   - Predicted Category: {player_predicted_categories.get(player, 'Unknown')}")
     print(f"   - Average Predicted Success Score: {player_avg_success_scores.get(player, 'N/A'):.4f}")
