@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify
 import sys
 import os
 
@@ -30,6 +30,7 @@ linear_threshold_data = [
         "predicted_category": linear_threshold.player_predicted_categories.get(player, "Unknown"),
         "actual_score": linear_threshold.target[linear_threshold.merged_data['Player'] == player].values[0] if player in linear_threshold.merged_data['Player'].values else None,
         "predicted_score": linear_threshold.player_avg_success_scores.get(player, None),
+        "match": linear_threshold.player_actual_categories.get(player) == linear_threshold.player_predicted_categories.get(player)
     }
     for player in lt_player_list
 ]
@@ -41,6 +42,7 @@ linear_cluster_data = [
         "predicted_category": linear_cluster.player_predicted_categories.get(player, "Unknown"),
         "actual_score": linear_cluster.target[linear_cluster.merged_data['Player'] == player].values[0] if player in linear_cluster.merged_data['Player'].values else None,
         "predicted_score": linear_cluster.player_avg_success_scores.get(player, None),
+        "match": linear_cluster.player_actual_categories.get(player) == linear_cluster.player_predicted_categories.get(player)
     }
     for player in lc_player_list
 ]
@@ -49,13 +51,21 @@ linear_cluster_data = [
 def home():
     return render_template("home.html")
 
-@app.route("/manual")
-def manual():
-    return render_template("manual.html", players=linear_threshold_data)
+@app.route("/linear_threshold")
+def lt():
+    return render_template("linear_threshold.html", players=linear_threshold_data)
 
-@app.route("/cluster")
-def cluster():
-    return render_template("cluster.html", players=linear_cluster_data)
+@app.route("/linear_cluster")
+def lc():
+    return render_template("linear_cluster.html", players=linear_cluster_data)
+
+@app.route("/threshold_data")
+def threshold_data():
+    return jsonify(linear_threshold_data)
+
+@app.route("/cluster_data")
+def cluster_data():
+    return jsonify(linear_cluster_data)
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Success Predictions (Linear Threshold Model)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        .chart-container {
+            width: 95%;
+            height: 500px; 
+            margin: 30px auto;
+            overflow-x: auto; /* horizontal scrolling */
+        }
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .legend span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .dot {
+            display: inline-block;
+        }
+        canvas {
+            min-width: 800px; /* proper spacing for player names */
+        }
+    </style>
+</head>
+<body>
+    <h1>Player Success Predictions (Linear Threshold Model)</h1>
+    <a href="/">Back to Home</a>
+    
+    <div class="legend">
+        <span><div class="dot"></div> Match ✅</span>
+        <span><div class="dot"></div> No Match ❌</span>
+    </div>
+
+    <div id="charts-container"></div> <!-- Dynamic Chart -->
+
+    <script>
+        fetch("/threshold_data")
+            .then(response => response.json())
+            .then(data => {
+                const playersPerChart = 10; // Players per chart
+                const totalCharts = Math.ceil(data.length / playersPerChart);
+                const chartsContainer = document.getElementById('charts-container');
+
+                for (let i = 0; i < totalCharts; i++) {
+                    const start = i * playersPerChart;
+                    const end = start + playersPerChart;
+                    const playersSubset = data.slice(start, end);
+
+                    // chart container
+                    const chartDiv = document.createElement('div');
+                    chartDiv.classList.add('chart-container');
+                    
+                    // canvas for chart
+                    const canvas = document.createElement('canvas');
+                    canvas.id = `chart-${i}`;
+                    chartDiv.appendChild(canvas);
+                    chartsContainer.appendChild(chartDiv);
+
+                    // data
+                    const playerNames = playersSubset.map(player => player.name);
+                    const actualScores = playersSubset.map(player => player.actual_score);
+                    const predictedScores = playersSubset.map(player => player.predicted_score);
+                    const matchColors = playersSubset.map(player => player.match ? '✅' : '❌'); 
+                    const predictedCategories = playersSubset.map(player => player.predicted_category); 
+
+                    // chart
+                    new Chart(canvas.getContext('2d'), {
+                        type: 'bar',
+                        data: {
+                            labels: playerNames,
+                            datasets: [
+                                {
+                                    label: 'Actual Score',
+                                    data: actualScores,
+                                    backgroundColor: 'blue'
+                                },
+                                {
+                                    label: 'Predicted Score',
+                                    data: predictedScores,
+                                    backgroundColor: 'orange'
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { position: 'top' },
+                                tooltip: { enabled: true }
+                            },
+                            scales: {
+                                x: { 
+                                    ticks: {
+                                        autoSkip: false,
+                                        maxRotation: 0,
+                                        minRotation: 0,
+                                        padding: 20, 
+                                        callback: function(value, index) {
+                                            return `${this.getLabelForValue(value)} ${matchColors[index]}`; 
+                                        }
+                                    }
+                                },
+                                y: { beginAtZero: true }
+                            },
+                            elements: {
+                                bar: { borderWidth: 2 }
+                            }
+                        },
+                        plugins: [{
+                            afterDatasetsDraw: function(chart) {
+                                const ctx = chart.ctx;
+                                ctx.textAlign = 'center';
+                                ctx.textBaseline = 'middle';
+                                ctx.font = '12px Arial';
+                                ctx.fillStyle = 'black';
+
+                                chart.data.labels.forEach((label, index) => {
+                                    const x = chart.scales.x.getPixelForTick(index);
+                                    const y = chart.scales.y.bottom + 20; 
+
+                                    // predicted category 
+                                    ctx.fillText(predictedCategories[index], x, y);
+                                });
+                            }
+                        }]
+                    });
+                }
+            });
+    </script>
+</body>
+</html>
+
+
+
+

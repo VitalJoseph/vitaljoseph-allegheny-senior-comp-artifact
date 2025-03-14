@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Success Predictions (Linear Cluster Model)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        canvas {
+            max-width: 90%;
+            margin: auto;
+        }
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .legend span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .green { background-color: green; }
+        .red { background-color: red; }
+    </style>
+</head>
+<body>
+    <h1>Player Success Predictions (Linear Cluster Model)</h1>
+    <a href="/">Back to Home</a>
+    <canvas id="successChart"></canvas>
+    <div class="legend">
+        <span><div class="dot green"></div> Match</span>
+        <span><div class="dot red"></div> No Match</span>
+    </div>
+
+    <script>
+        fetch("/cluster_data")
+            .then(response => response.json())
+            .then(data => {
+                const ctx = document.getElementById('successChart').getContext('2d');
+                const playerNames = data.map(player => player.name);
+                const actualScores = data.map(player => player.actual_score);
+                const predictedScores = data.map(player => player.predicted_score);
+                const colors = data.map(player => player.match ? 'green' : 'red');
+
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: playerNames,
+                        datasets: [
+                            {
+                                label: 'Actual Score',
+                                data: actualScores,
+                                backgroundColor: 'blue'
+                            },
+                            {
+                                label: 'Predicted Score',
+                                data: predictedScores,
+                                backgroundColor: 'orange'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'top' },
+                            tooltip: { enabled: true }
+                        },
+                        scales: {
+                            x: { ticks: { autoSkip: false, maxRotation: 45, minRotation: 45 } },
+                            y: { beginAtZero: true }
+                        },
+                        elements: {
+                            bar: {
+                                borderWidth: 2
+                            }
+                        }
+                    }
+                });
+            });
+    </script>
+</body>
+</html>
