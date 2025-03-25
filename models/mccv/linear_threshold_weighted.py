@@ -61,7 +61,7 @@ success_metric_weights = {
     'nflYds_avg_normalized': .6,
     'nflTD_avg_normalized': .5,
     'nflRec_avg_normalized': .6,
-    'AP1_avg_normalized': .8,
+    'AP1_avg_normalized': .6,
     'St_avg_normalized': .4,
     'PB_avg_normalized': .4,
     'wAV_normalized': .4
@@ -145,6 +145,9 @@ merged_data = data.merge(nfl_stats[['Player', 'SuccessMetric']], on='Player', ho
 # Faster is better
 merged_data['40yd_inv'] = 1 / merged_data['40yd']
 
+# Exclude players with 7 or fewer games played in college
+merged_data = merged_data[merged_data['G'] > 7].reset_index(drop=True)
+
 # Features
 features = merged_data[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank', '40yd_inv', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)', 'HSrank']]
 
@@ -159,14 +162,12 @@ target = merged_data['SuccessMetric']
 
 # Define categorize_player function
 def categorize_player(success_metric):
-    if success_metric >= 5.5:  
-        return "Pro Bowler or Better (Great to Elite)"
-    elif success_metric >= 1:  
-        return "Starter (Good)"
-    elif success_metric >= -2:  
-        return "Backup (Average)"
+    if success_metric >= 7.7:  
+        return "Elite"
+    elif success_metric >= 3:  
+        return "Good to Great"
     else:
-        return "Practice Squad (Below Average)"  
+        return "Below Average"  
 
 
 # Monte Carlo Cross Validation

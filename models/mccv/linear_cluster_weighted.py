@@ -61,7 +61,7 @@ success_metric_weights = {
     'nflYds_avg_normalized': .6,
     'nflTD_avg_normalized': .5,
     'nflRec_avg_normalized': .6,
-    'AP1_avg_normalized': .8,
+    'AP1_avg_normalized': .6,
     'St_avg_normalized': .4,
     'PB_avg_normalized': .4,
     'wAV_normalized': .4
@@ -144,6 +144,9 @@ merged_data = data.merge(nfl_stats[['Player', 'SuccessMetric']], on='Player', ho
 # Faster is better
 merged_data['40yd_inv'] = 1 / merged_data['40yd']
 
+# Exclude players with 7 or fewer games played in college
+merged_data = merged_data[merged_data['G'] > 7].reset_index(drop=True)
+
 # Use transformed features in your model
 features = merged_data[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank', '40yd_inv', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)', 'HSrank']]              
 
@@ -208,14 +211,14 @@ feature_names = features_normalized_df.columns
 # Print feature-coefficient mapping
 print("\n\033[1;32m=== Engineered Model Coefficients ===\033[0m\n")
 for feature, coef in zip(feature_names, average_coefficients):
-    print(f"{feature}: {coef:.6f}")
+    print(f"{feature}: {coef:.2f}")
 
 # Compute average predicted success score for each player
 player_avg_success_scores = {player: np.mean(scores) for player, scores in player_success_scores.items()}
 
 # Perform K-Means clustering on average predicted success scores
 avg_success_array = np.array(list(player_avg_success_scores.values())).reshape(-1, 1)
-kmeans = KMeans(n_clusters=4, random_state=42, n_init=10)
+kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
 kmeans.fit(avg_success_array)
 
 # Sort clusters based on average success score
@@ -226,10 +229,9 @@ cluster_avg_scores = pd.DataFrame({
 
 # Map sorted clusters to categories
 cluster_to_category = {
-    cluster_avg_scores.index[0]: "Pro Bowler or Better (Great to Elite)",
-    cluster_avg_scores.index[1]: "Starter (Good)",
-    cluster_avg_scores.index[2]: "Backup (Average)",
-    cluster_avg_scores.index[3]: "Practice Squad (Below Average)"
+    cluster_avg_scores.index[0]: "Elite",
+    cluster_avg_scores.index[1]: "Good to Great",
+    cluster_avg_scores.index[2]: "Below Average"
 }
 
 # Assign predicted categories based on clustering
@@ -237,7 +239,7 @@ player_predicted_categories = {player: cluster_to_category[kmeans.labels_[i]] fo
 
 # Assign actual categories based on clustering the target variable
 actual_success_array = np.array(list(player_actual_scores.values())).reshape(-1, 1)
-kmeans_actual = KMeans(n_clusters=4, random_state=42, n_init=10)
+kmeans_actual = KMeans(n_clusters=3, random_state=42, n_init=10)
 kmeans_actual.fit(actual_success_array)
 
 actual_cluster_avg_scores = pd.DataFrame({
@@ -246,10 +248,9 @@ actual_cluster_avg_scores = pd.DataFrame({
 }).groupby("Cluster")["Score"].mean().sort_values(ascending=False)
 
 actual_cluster_to_category = {
-    actual_cluster_avg_scores.index[0]: "Pro Bowler or Better (Great to Elite)",
-    actual_cluster_avg_scores.index[1]: "Starter (Good)",
-    actual_cluster_avg_scores.index[2]: "Backup (Average)",
-    actual_cluster_avg_scores.index[3]: "Practice Squad (Below Average)"
+    actual_cluster_avg_scores.index[0]: "Elite",
+    actual_cluster_avg_scores.index[1]: "Good to Great",
+    actual_cluster_avg_scores.index[2]: "Below Average"
 }
 
 player_actual_categories = {player: actual_cluster_to_category[kmeans_actual.labels_[i]] for i, player in enumerate(player_actual_scores.keys())}

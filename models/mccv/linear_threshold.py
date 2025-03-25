@@ -129,6 +129,9 @@ merged_data = data.merge(nfl_stats[['Player', 'SuccessMetric']], on='Player', ho
 # Faster is better
 merged_data['40yd_inv'] = 1 / merged_data['40yd']
 
+# Exclude players with 7 or fewer games played in college
+merged_data = merged_data[merged_data['G'] > 7].reset_index(drop=True)
+
 # Use transformed features in your model
 features = merged_data[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank', '40yd_inv', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)', 'HSrank']]
 
@@ -147,14 +150,12 @@ target = merged_data['SuccessMetric']
 
 # Define categorize_player function
 def categorize_player(success_metric):
-    if success_metric >= 5.5:  
-        return "Pro Bowler or Better (Great to Elite)"
-    elif success_metric >= 1:  
-        return "Starter (Good)"
-    elif success_metric >= -2:  
-        return "Backup (Average)"
+    if success_metric >= 7.7:  
+        return "Elite"
+    elif success_metric >= 3:  
+        return "Good to Great"
     else:
-        return "Practice Squad (Below Average)"  
+        return "Below Average"  
 
 
 # Monte Carlo Cross Validation
@@ -196,7 +197,7 @@ feature_names = features_normalized_df.columns
 # Print feature-coefficient mapping
 print("\n\033[1;32m=== Overall Model Coefficients ===\033[0m\n")
 for feature, coef in zip(feature_names, average_coefficients):
-    print(f"{feature}: {coef:.6f}")
+    print(f"{feature}: {coef:.3f}")
 
     
 # Compute average predicted success score for each player
