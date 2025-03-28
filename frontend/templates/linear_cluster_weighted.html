@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Player Success Predictions (Linear Cluster Model)</title>
+    <title>Player Success Predictions (Linear Cluster Weighted Model)</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
@@ -36,7 +36,7 @@
     </style>
 </head>
 <body>
-    <h1>Player Success Predictions (Linear Cluster Model)</h1>
+    <h1>Player Success Predictions (Linear Cluster Weighted Model)</h1>
     <a href="/">Back to Home</a>
     
     <div class="legend">
@@ -47,7 +47,7 @@
     <div id="charts-container"></div>
 
     <script>
-        fetch("/cluster_data")
+        fetch("/cluster_weighted_data")
             .then(response => response.json())
             .then(data => {
                 const playersPerChart = 10;

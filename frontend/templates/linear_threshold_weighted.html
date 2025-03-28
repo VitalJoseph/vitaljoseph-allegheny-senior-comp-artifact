@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Player Success Predictions (Linear Cluster Model)</title>
+    <title>Player Success Predictions (Linear Threshold Weighted Model)</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
@@ -14,7 +14,7 @@
             width: 95%;
             height: 500px; 
             margin: 30px auto;
-            overflow-x: auto;
+            overflow-x: auto; /* horizontal scrolling */
         }
         .legend {
             display: flex;
@@ -31,12 +31,12 @@
             display: inline-block;
         }
         canvas {
-            min-width: 800px;
+            min-width: 800px; /* proper spacing for player names */
         }
     </style>
 </head>
 <body>
-    <h1>Player Success Predictions (Linear Cluster Model)</h1>
+    <h1>Player Success Predictions (Linear Threshold Weighted Model)</h1>
     <a href="/">Back to Home</a>
     
     <div class="legend">
@@ -44,13 +44,13 @@
         <span><div class="dot"></div> No Match ❌</span>
     </div>
 
-    <div id="charts-container"></div>
+    <div id="charts-container"></div> <!-- Dynamic Chart -->
 
     <script>
-        fetch("/cluster_data")
+        fetch("/threshold_weighted_data")
             .then(response => response.json())
             .then(data => {
-                const playersPerChart = 10;
+                const playersPerChart = 10; // Players per chart
                 const totalCharts = Math.ceil(data.length / playersPerChart);
                 const chartsContainer = document.getElementById('charts-container');
 
@@ -59,20 +59,24 @@
                     const end = start + playersPerChart;
                     const playersSubset = data.slice(start, end);
 
+                    // chart container
                     const chartDiv = document.createElement('div');
                     chartDiv.classList.add('chart-container');
                     
+                    // canvas for chart
                     const canvas = document.createElement('canvas');
                     canvas.id = `chart-${i}`;
                     chartDiv.appendChild(canvas);
                     chartsContainer.appendChild(chartDiv);
 
+                    // data
                     const playerNames = playersSubset.map(player => player.name);
                     const actualScores = playersSubset.map(player => player.actual_score);
                     const predictedScores = playersSubset.map(player => player.predicted_score);
                     const matchColors = playersSubset.map(player => player.match ? '✅' : '❌'); 
                     const predictedCategories = playersSubset.map(player => player.predicted_category); 
 
+                    // chart
                     new Chart(canvas.getContext('2d'), {
                         type: 'bar',
                         data: {
@@ -126,6 +130,8 @@
                                 chart.data.labels.forEach((label, index) => {
                                     const x = chart.scales.x.getPixelForTick(index);
                                     const y = chart.scales.y.bottom + 20; 
+
+                                    // predicted category 
                                     ctx.fillText(predictedCategories[index], x, y);
                                 });
                             }
