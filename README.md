@@ -6,7 +6,7 @@ This project leverages **Linear Regression**, **Monte Carlo Cross-Validation (MC
 
 - **Linear Regression** used as the primary predictive modeling technique, utilizing it to estimate the success scores of NFL draft prospects based different metrics
 - **Monte Carlo Cross Validation** for robust player success prediction
-- **KMeans Clustering/Manual Thresholding** to categorize players into tiers (All-Pro, Starter, Backup, etc.)
+- **KMeans Clustering/Manual Thresholding** to categorize players into tiers
 - **Flask Web App** for visualization of predictions
 - **Standardized and Normalized Metrics** for accurate comparisons
 
@@ -34,9 +34,13 @@ pip install -r requirements.txt
 ### Run in terminal
 
 ```sh
-python models/manual_mccv.py
+python models/mccv/linear_threshold.py
 # or
-python models/cluster_mccv.py
+python models/mccv/linear_threshold_weighted.py
+#or
+python models/mccv/linear_cluster.py
+#or
+python models/mccv/linear_cluster_weighted.py
 ```
 
 ### Run Flask App
