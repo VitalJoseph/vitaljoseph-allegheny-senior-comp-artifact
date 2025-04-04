@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receiver Success Predictions 2025 (Linear Threshold Weighted Model)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        .chart-container {
+            width: 20%;
+            height: 300px;
+            margin: 20px auto;
+            overflow-x: auto;
+        }
+        select {
+            margin: 20px;
+            padding: 10px;
+            font-size: 16px;
+        }
+        canvas {
+            min-width: 400px;
+        }
+        #category-display {
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Receiver Success Predictions 2025 (Linear Threshold Weighted Model)</h1>
+    <a href="/">Back to Home</a>
+    
+    <select id="player-select">
+        <option value="">Select a Player</option>
+    </select>
+    
+    <div id="category-display"></div>
+    
+    <div class="chart-container">
+        <canvas id="prediction-chart"></canvas>
+    </div>
+
+    <script>
+        fetch("/threshold_weighted_2025_data")
+            .then(response => response.json())
+            .then(data => {
+                const playerSelect = document.getElementById('player-select');
+                const ctx = document.getElementById('prediction-chart').getContext('2d');
+                const categoryDisplay = document.getElementById('category-display');
+                let chartInstance = null;
+
+                data.forEach(player => {
+                    const option = document.createElement('option');
+                    option.value = player.name;
+                    option.textContent = player.name;
+                    playerSelect.appendChild(option);
+                });
+
+                playerSelect.addEventListener('change', function() {
+                    const selectedPlayer = data.find(player => player.name === this.value);
+                    if (!selectedPlayer) return;
+                    
+                    categoryDisplay.textContent = `Category: ${selectedPlayer.predicted_category || 'Unknown'}`;
+                    
+                    const chartData = {
+                        labels: ['Predicted Score'],
+                        datasets: [
+                            {
+                                label: selectedPlayer.name,
+                                data: [selectedPlayer.predicted_score ?? 0],
+                                backgroundColor: 'orange'
+                            }
+                        ]
+                    };
+
+                    const chartOptions = {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true }
+                        },
+                        plugins: {
+                            legend: { position: 'top' },
+                            tooltip: { 
+                                enabled: true,
+                                callbacks: {
+                                    label: function(tooltipItem) {
+                                        return `Predicted Score: ${tooltipItem.raw.toFixed(2)}`;
+                                    }
+                                }
+                            }
+                        }
+                    };
+
+                    if (chartInstance) {
+                        chartInstance.destroy();
+                    }
+                    
+                    chartInstance = new Chart(ctx, {
+                        type: 'bar',
+                        data: chartData,
+                        options: chartOptions
+                    });
+                });
+            });
+    </script>
+</body>
+</html>

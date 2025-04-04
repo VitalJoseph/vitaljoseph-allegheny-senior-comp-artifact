@@ -23,6 +23,7 @@ lt_player_list = list(linear_threshold.player_avg_success_scores.keys())
 ltw_player_list = list(linear_threshold_weighted.player_avg_success_scores.keys())
 lc_player_list = list(linear_cluster.player_avg_success_scores.keys())
 lcw_player_list = list(linear_cluster_weighted.player_avg_success_scores.keys())
+ltw_2025_player_list = list(linear_threshold_weighted.player_predictions_2025.keys())
 
 # Convert data into a structured format for the webpage
 linear_threshold_data = [
@@ -73,6 +74,15 @@ linear_cluster_weighted_data = [
     for player in lcw_player_list
 ]
 
+linear_threshold_weighted_2025_data = [
+    {
+        "name": player,
+        "predicted_category": linear_threshold_weighted.player_categories_2025.get(player),
+        "predicted_score": linear_threshold_weighted.player_predictions_2025.get(player),
+    }
+    for player in ltw_2025_player_list
+]
+
 @app.route("/")
 def home():
     return render_template("home.html")
@@ -93,6 +103,12 @@ def lc():
 def lcw():
     return render_template("linear_cluster_weighted.html", players=linear_cluster_weighted_data)
 
+@app.route("/linear_threshold_weighted_2025")
+def ltw_2025():
+    return render_template("linear_threshold_weighted_2025.html", players=linear_threshold_weighted_2025_data)
+
+
+
 @app.route("/threshold_data")
 def threshold_data():
     return jsonify(linear_threshold_data)
@@ -108,6 +124,10 @@ def cluster_data():
 @app.route("/cluster_weighted_data")
 def cluster_weighted_data():
     return jsonify(linear_cluster_weighted_data)
+
+@app.route("/threshold_weighted_2025_data")
+def threshold_weighted_2025_data():
+    return jsonify(linear_threshold_weighted_2025_data)
 
 if __name__ == "__main__":
     app.run(debug=True)
