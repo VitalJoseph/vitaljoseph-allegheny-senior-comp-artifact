@@ -99,10 +99,22 @@ file_paths_college = [
     "data/historical-college/2022wr.csv"
 ]
 
+# projected 2025 wr draft class
+file_paths_2025wr = [
+    "data/2025wr_prospects/college.csv"
+    "data/2025wr_prospects/combine.csv"
+    "data/2025wr_prospects/measurements.csv"
+]
+
 # Load and combine the datasets
 combined_data_measurements = pd.concat([pd.read_csv(path) for path in file_paths_measurements], ignore_index=True)
 combined_data_combine = pd.concat([pd.read_csv(path) for path in file_paths_combine], ignore_index=True)
 combined_data_college = pd.concat([pd.read_csv(path) for path in file_paths_college], ignore_index=True)
+
+# Merge all dataframes on the 'Player' column
+combined_2025_data = pd.read_csv("data/2025wr_prospects/college.csv").merge(pd.read_csv(
+    "data/2025wr_prospects/combine.csv"), on="Player", how="outer").merge(pd.read_csv(
+        "data/2025wr_prospects/measurements.csv"), on="Player", how="outer")
 
 # Save the combined data to a new CSV file
 output_path_measurements = "data/historical-measurements/combined_wr_data.csv"
@@ -115,10 +127,15 @@ combined_data_combine.to_csv(output_path_combine, index=False)
 output_path_college = "data/historical-college/combined_wr_data.csv"
 combined_data_college.to_csv(output_path_college, index=False)
 
+output_path_2025wr = "data/2025wr_prospects/combined_wr_data.csv"
+combined_2025_data.to_csv(output_path_2025wr, index=False)
+
 # Select features and target variable
 measurements = pd.read_csv("data/historical-measurements/combined_wr_data.csv")
 combine_stats = pd.read_csv("data/historical-combine/combined_wr_data.csv")
 college_stats = pd.read_csv("data/historical-college/combined_wr_data.csv")
+
+combined2025_metrics = pd.read_csv("data/2025wr_prospects/combined_wr_data.csv")
 
 conference_rankings = {
     'SEC': 10,
@@ -135,6 +152,7 @@ conference_rankings = {
 
 # Map conference names to their rankings, default to 1 for any conference not listed
 college_stats['ConfRank'] = college_stats['Conf'].map(conference_rankings).fillna(1)
+combined2025_metrics['ConfRank'] = combined2025_metrics['Conf'].map(conference_rankings).fillna(1)
 
 # Merge datasets on Player column
 data = college_stats.merge(measurements, on="Player").merge(combine_stats, on="Player")
@@ -144,12 +162,15 @@ merged_data = data.merge(nfl_stats[['Player', 'SuccessMetric']], on='Player', ho
 
 # Faster is better
 merged_data['40yd_inv'] = 1 / merged_data['40yd']
+combined2025_metrics['40yd_inv'] = 1 / combined2025_metrics['40yd']
 
 # Exclude players with 7 or fewer games played in college
 merged_data = merged_data[merged_data['G'] > 7].reset_index(drop=True)
+combined2025_metrics = combined2025_metrics[combined2025_metrics['G'] > 7].reset_index(drop=True)
 
 # Features
 features = merged_data[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank', '40yd_inv', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)', 'HSrank']]
+features_2025 = combined2025_metrics[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank', '40yd_inv', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)', 'HSrank']]
 
 # Normalize the feature metrics (standard deviation normalization)
 features_normalized = scaler.fit_transform(features)
@@ -204,6 +225,36 @@ for i in range(num_iterations):
         player_success_scores[player].append(pred_score)  # Store predicted scores
         player_actual_scores[player] = actual_score  # Store actual success score
         player_actual_categories[player] = categorize_player(actual_score)  # Store categorized version
+
+
+
+# Normalize the 2025 features using the same scaler
+features_2025_normalized = scaler.transform(features_2025)
+
+# Predict success for 2025 WR class
+predictions_2025 = model.predict(features_2025_normalized)
+
+# Store predictions for both historical and 2025
+player_predictions_2025 = defaultdict(list)
+
+# 2025 draft class
+for player, pred_score in zip(combined2025_metrics['Player'], predictions_2025):
+    player_predictions_2025[player].append(pred_score)
+
+# Categorize 2025 players
+player_categories_2025 = {
+    player: categorize_player(pred_score)
+    for player, pred_score in zip(combined2025_metrics['Player'], predictions_2025)
+}
+
+# Combine into a DataFrame
+predictions_df = pd.DataFrame({
+    'Player': list(player_predictions_2025.keys()),
+    'Prediction': predictions_2025,
+    'Category': [player_categories_2025.get(player, None) for player in player_predictions_2025.keys()]})
+
+# Save to CSV
+predictions_df.to_csv("data/2025wr_prospects/2025wr_predictions.csv", index=False)
 
 # Compute the sum of weights
 sum_weights = np.sum(custom_weights)
