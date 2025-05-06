@@ -23,6 +23,21 @@ file_paths_nfl = [
 # Load and combine the datasets
 combined_data_nfl = pd.concat([pd.read_csv(path) for path in file_paths_nfl], ignore_index=True)
 
+# Calculate mean and range for all numerical columns in the combined dataset
+numerical_columns = combined_data_nfl.select_dtypes(include=[np.number]).columns
+numerical_summary = {}
+for column in numerical_columns:
+    column_mean = combined_data_nfl[column].mean()
+    column_range = combined_data_nfl[column].max() - combined_data_nfl[column].min()
+    numerical_summary[column] = {'mean': column_mean, 'range': column_range}
+
+# Print the mean and range for each numerical column
+print("\n\033[1;35m=== NFL Data Summary ===\033[0m")
+for column, summary in numerical_summary.items():
+    print(f"{column}:")
+    print(f"  - Mean: {summary['mean']:.2f}")
+    print(f"  - Range: [{combined_data_nfl[column].min():.2f}, {combined_data_nfl[column].max():.2f}]")
+
 # Save the combined data to a new CSV file
 output_path_nfl = "data/historical-nfl/combined_wr_data.csv"
 combined_data_nfl.to_csv(output_path_nfl, index=False)
@@ -141,6 +156,21 @@ data = college_stats.merge(measurements, on="Player").merge(combine_stats, on="P
 # Ensure that the players in the target and features match
 merged_data = data.merge(nfl_stats[['Player', 'SuccessMetric']], on='Player', how='inner')
 
+# Calculate mean and range for all numerical columns in the merged dataset
+numerical_columns = merged_data.select_dtypes(include=[np.number]).columns
+numerical_summary = {}
+for column in numerical_columns:
+    column_mean = merged_data[column].mean()
+    column_range = merged_data[column].max() - merged_data[column].min()
+    numerical_summary[column] = {'mean': column_mean, 'range': column_range}
+
+# Print the mean and range for each numerical column
+print("\n\033[1;35m=== College Data Summary ===\033[0m")
+for column, summary in numerical_summary.items():
+    print(f"{column}:")
+    print(f"  - Mean: {summary['mean']:.2f}")
+    print(f"  - Range: [{merged_data[column].min():.2f}, {merged_data[column].max():.2f}]")
+
 # Faster is better
 merged_data['40yd_inv'] = 1 / merged_data['40yd']
 
@@ -198,9 +228,6 @@ for i in range(num_iterations):
         player_actual_scores[player] = actual_score
 
 
-# Compute the sum of weights
-sum_weights = np.sum(custom_weights)
-print(f"Sum of weights: {sum_weights}")
 
 # Compute overall average coefficients
 average_coefficients = np.mean(all_coefficients, axis=0)
@@ -210,6 +237,11 @@ feature_names = features_normalized_df.columns
 
 # Print feature-coefficient mapping
 print("\n\033[1;32m=== Engineered Model Coefficients ===\033[0m\n")
+
+# Compute the sum of weights
+sum_weights = np.sum(custom_weights)
+print(f"Sum of Coefficients: {sum_weights:.2f}\n")
+
 for feature, coef in zip(feature_names, average_coefficients):
     print(f"{feature}: {coef:.2f}")
 

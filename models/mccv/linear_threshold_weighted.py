@@ -23,6 +23,21 @@ file_paths_nfl = [
 # Load and combine the datasets
 combined_data_nfl = pd.concat([pd.read_csv(path) for path in file_paths_nfl], ignore_index=True)
 
+# Calculate mean and range for all numerical columns in the combined dataset
+numerical_columns = combined_data_nfl.select_dtypes(include=[np.number]).columns
+numerical_summary = {}
+for column in numerical_columns:
+    column_mean = combined_data_nfl[column].mean()
+    column_range = combined_data_nfl[column].max() - combined_data_nfl[column].min()
+    numerical_summary[column] = {'mean': column_mean, 'range': column_range}
+
+# Print the mean and range for each numerical column
+print("\n\033[1;35m=== NFL Data Summary ===\033[0m")
+for column, summary in numerical_summary.items():
+    print(f"{column}:")
+    print(f"  - Mean: {summary['mean']:.2f}")
+    print(f"  - Range: [{combined_data_nfl[column].min():.2f}, {combined_data_nfl[column].max():.2f}]")
+
 # Save the combined data to a new CSV file
 output_path_nfl = "data/historical-nfl/combined_wr_data.csv"
 combined_data_nfl.to_csv(output_path_nfl, index=False)
@@ -33,6 +48,7 @@ nfl_stats['nflYears'] = nfl_stats['nflYears'].astype(float)
 
 # List of columns to normalize and average
 nfl_metrics = ['nflRec', 'nflYds', 'nflTD', 'AP1', 'St', 'PB']
+
 
 # Average the metrics by dividing by nflYears
 for metric in nfl_metrics:
@@ -160,6 +176,21 @@ data = college_stats.merge(measurements, on="Player").merge(combine_stats, on="P
 # Ensure that the players in the target and features match
 merged_data = data.merge(nfl_stats[['Player', 'SuccessMetric']], on='Player', how='inner')
 
+# Calculate mean and range for all numerical columns in the merged dataset
+numerical_columns = merged_data.select_dtypes(include=[np.number]).columns
+numerical_summary = {}
+for column in numerical_columns:
+    column_mean = merged_data[column].mean()
+    column_range = merged_data[column].max() - merged_data[column].min()
+    numerical_summary[column] = {'mean': column_mean, 'range': column_range}
+
+# Print the mean and range for each numerical column
+print("\n\033[1;35m=== College Data Summary ===\033[0m")
+for column, summary in numerical_summary.items():
+    print(f"{column}:")
+    print(f"  - Mean: {summary['mean']:.2f}")
+    print(f"  - Range: [{merged_data[column].min():.2f}, {merged_data[column].max():.2f}]")
+
 # Faster is better
 merged_data['40yd_inv'] = 1 / merged_data['40yd']
 combined2025_metrics['40yd_inv'] = 1 / combined2025_metrics['40yd']
@@ -170,6 +201,8 @@ combined2025_metrics = combined2025_metrics[combined2025_metrics['G'] > 7].reset
 
 # Features
 features = merged_data[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank', '40yd_inv', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)', 'HSrank']]
+
+
 features_2025 = combined2025_metrics[['Rec', 'Yds', 'Y/R', 'TD', 'Y/G', 'G', 'ConfRank', '40yd_inv', 'Height(in)', 'Weight', 'Hand(in)', 'Arm(in)', 'Wingspan(in)', 'HSrank']]
 
 # Normalize the feature metrics (standard deviation normalization)
@@ -231,8 +264,11 @@ for i in range(num_iterations):
 # Normalize the 2025 features using the same scaler
 features_2025_normalized = scaler.transform(features_2025)
 
+# Convert back to DataFrame with the correct column names
+features_2025_normalized_df = pd.DataFrame(features_2025_normalized, columns=features.columns)
+
 # Predict success for 2025 WR class
-predictions_2025 = model.predict(features_2025_normalized)
+predictions_2025 = model.predict(features_2025_normalized_df)
 
 # Store predictions for both historical and 2025
 player_predictions_2025 = defaultdict(list)
@@ -256,9 +292,6 @@ predictions_df = pd.DataFrame({
 # Save to CSV
 predictions_df.to_csv("data/2025wr_prospects/2025wr_predictions.csv", index=False)
 
-# Compute the sum of weights
-sum_weights = np.sum(custom_weights)
-print(f"Sum of weights: {sum_weights}")
 
 # Compute overall average coefficients
 average_coefficients = np.mean(all_coefficients, axis=0)
@@ -268,6 +301,11 @@ feature_names = features_normalized_df.columns
 
 # Print feature-coefficient mapping
 print("\n\033[1;32m=== Engineered Model Coefficients ===\033[0m\n")
+
+# Compute the sum of weights
+sum_weights = np.sum(custom_weights)
+print(f"Sum of Coefficients: {sum_weights:.2f}\n")
+
 for feature, coef in zip(feature_names, average_coefficients):
     print(f"{feature}: {coef:.3f}")
 
