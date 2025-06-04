@@ -10,6 +10,10 @@ This project leverages **Linear Regression**, **Monte Carlo Cross-Validation (MC
 - **Flask Web App** for visualization of predictions
 - **Standardized and Normalized Metrics** for accurate comparisons
 
+## Thesis Writing/Tool Explanation
+
+<https://effective-adventure-kgglml5.pages.github.io/thesis/>
+
 ## Installation & Setup
 
 ### 1. Clone the Repository
@@ -18,7 +22,7 @@ This project leverages **Linear Regression**, **Monte Carlo Cross-Validation (MC
 git clone git@github.com:VitalJoseph/vitaljoseph-allegheny-senior-comp-artifact.git
 ```
 
-### Create and Activate Virtual Environment
+### Create and Activate Virtual Environment (OPTIONAL)
 
 ```sh
 python -m venv artifact_env
@@ -36,6 +40,7 @@ pip install -r requirements.txt
 ```sh
 python models/mccv/linear_threshold.py
 # or
+# (BEST MODEL)
 python models/mccv/linear_threshold_weighted.py
 #or
 python models/mccv/linear_cluster.py
