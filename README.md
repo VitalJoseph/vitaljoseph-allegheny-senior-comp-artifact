@@ -56,7 +56,7 @@ python frontend/app.py
 
 ## **Model Overview**
 
-![Model Overview](/research-journal-VitalJoseph/thesis/images/diagram.png){width=95%}
+![Model Overview](images/diagram.png)
 
 ## Data Collection and Preprocessing
 
